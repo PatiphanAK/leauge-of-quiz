@@ -1,13 +1,12 @@
-// middleware/auth_middleware.go
 package middleware
 
 import (
 	"errors"
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/patiphanak/league-of-quiz/auth/jwt"
+	"github.com/patiphanak/league-of-quiz/model"
 	"gorm.io/gorm"
+	"strings"
 )
 
 type AuthMiddleware struct {

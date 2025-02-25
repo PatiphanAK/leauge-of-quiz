@@ -5,9 +5,9 @@ services:
     image: postgres:latest
     container_name: postgres
     environment:
-      POSTGRES_DB: mydatabase
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+      POSTGRES_USER: tatar
+      POSTGRES_PASSWORD: tatar025
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

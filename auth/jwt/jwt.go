@@ -2,11 +2,10 @@ package jwt
 
 import (
 	"errors"
-	"time"
-
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/patiphanak/league-of-quiz/config"
-	"github.com/patiphanak/league-of-quiz/models"
+	models "github.com/patiphanak/league-of-quiz/model"
+	"time"
 )
 
 var (

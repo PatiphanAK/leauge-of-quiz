@@ -1,4 +1,4 @@
-package models
+package database
 
 import (
 	"fmt"
@@ -12,7 +12,6 @@ import (
 
 var DB *gorm.DB
 
-// InitDB เริ่มต้นการเชื่อมต่อกับฐานข้อมูล
 func InitDB() {
 	// ตั้งค่า Database Connection
 	err := godotenv.Load()
@@ -38,33 +37,4 @@ func InitDB() {
 
 	DB = db
 	fmt.Println("Database connected successfully")
-}
-
-// MigrateDB สร้างหรืออัปเดตตารางในฐานข้อมูล
-func MigrateDB() error {
-	if DB == nil {
-		return fmt.Errorf("database connection not initialized")
-	}
-
-	err := DB.AutoMigrate(
-		&User{},
-		&Quiz{},
-		&Question{},
-		&Choice{},
-		&PlayerAnswer{},
-		&GamePlayer{},
-		&GameSession{},
-	)
-
-	if err != nil {
-		return fmt.Errorf("migration failed: %w", err)
-	}
-
-	fmt.Println("Database migration completed successfully")
-	return nil
-}
-
-// GetDB returns the database connection
-func GetDB() *gorm.DB {
-	return DB
 }

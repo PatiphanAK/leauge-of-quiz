@@ -40,8 +40,9 @@ func (g *GoogleOAuth) GetAuthURL(state string) string {
 	params.Add("state", state)
 	params.Add("access_type", "offline")
 	params.Add("prompt", "consent")
-
-	return fmt.Sprintf("%s?%s", googleAuthURL, params.Encode())
+	authURL := fmt.Sprintf("%s?%s", googleAuthURL, params.Encode())
+	fmt.Println(authURL)
+	return authURL
 }
 
 // Exchange implements Provider
