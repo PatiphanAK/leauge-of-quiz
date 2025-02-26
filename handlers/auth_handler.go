@@ -28,7 +28,6 @@ func NewAuthHandler(db *gorm.DB, googleOAuth *oauth.GoogleOAuth, jwtService *jwt
 
 // Google login ส่ง redirect ไป Google OAuth Login
 func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
-
 	state := uuid.New().String()
 
 	c.Cookie(&fiber.Cookie{
@@ -106,14 +105,49 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		})
 	}
 
-	// ส่งข้อมูลกลับ
+	// ตั้งค่า cookie แบบ HTTP-only เพื่อป้องกัน XSS
+	c.Cookie(&fiber.Cookie{
+		Name:     "auth_token",
+		Value:    jwtToken,
+		Path:     "/",
+		HTTPOnly: true,
+		// ถ้าใช้งานบน localhost ในระหว่างการพัฒนา ให้ตั้งค่า Secure เป็น false
+		// ในสภาพแวดล้อมการทำงานจริง (production) ให้เปลี่ยนเป็น true
+		Secure: false,
+		// SameSite: "Lax" มีความเหมาะสมกับ redirects มากกว่า "Strict"
+		SameSite: "Lax",
+		MaxAge:   60 * 60 * 24 * 7, // 1 week
+	})
+
+	// ส่งข้อมูลกลับโดยไม่รวม token ใน response body
+	// เนื่องจากเราใช้ HTTP-only cookie แล้ว
 	return c.JSON(fiber.Map{
-		"token": jwtToken,
+		"success": true,
 		"user": fiber.Map{
 			"id":          user.ID,
 			"email":       user.Email,
 			"displayName": user.DisplayName,
 			"pictureUrl":  user.PictureURL,
 		},
+	})
+}
+
+// Logout จัดการการออกจากระบบโดยลบ cookie
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	// ลบ cookie โดยการตั้งค่า MaxAge เป็นค่าลบ
+	c.Cookie(&fiber.Cookie{
+		Name:     "auth_token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Now().Add(-time.Hour),
+		HTTPOnly: true,
+		SameSite: "Lax",
+		Secure:   false, // ตั้งเป็น true ในโหมด production
+	})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Logged out successfully",
 	})
 }

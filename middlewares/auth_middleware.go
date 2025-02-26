@@ -2,11 +2,11 @@ package middleware
 
 import (
 	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/patiphanak/league-of-quiz/auth/jwt"
-	"github.com/patiphanak/league-of-quiz/model"
+	models "github.com/patiphanak/league-of-quiz/model"
 	"gorm.io/gorm"
-	"strings"
 )
 
 type AuthMiddleware struct {
@@ -24,18 +24,15 @@ func NewAuthMiddleware(db *gorm.DB, jwtService *jwt.JWTService) *AuthMiddleware 
 // RequireAuth middleware ที่ตรวจสอบว่าผู้ใช้ได้เข้าสู่ระบบหรือไม่
 func (m *AuthMiddleware) RequireAuth() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// ดึง Authorization header
-		auth := c.Get("Authorization")
+		// ดึง token จาก cookie
+		tokenString := c.Cookies("auth_token")
 
-		// ตรวจสอบว่ามี Bearer token หรือไม่
-		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+		// ตรวจสอบว่ามี token หรือไม่
+		if tokenString == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Unauthorized",
 			})
 		}
-
-		// แยก token ออกจาก Bearer prefix
-		tokenString := strings.TrimPrefix(auth, "Bearer ")
 
 		// ตรวจสอบความถูกต้องของ token
 		claims, err := m.jwtService.ValidateToken(tokenString)
@@ -63,5 +60,24 @@ func (m *AuthMiddleware) RequireAuth() fiber.Handler {
 
 		// ดำเนินการต่อไปยัง handler ถัดไป
 		return c.Next()
+	}
+}
+
+// Optional: Add logout handler to clear the cookie
+func (m *AuthMiddleware) Logout() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		c.Cookie(&fiber.Cookie{
+			Name:     "auth_token",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HTTPOnly: true,
+			SameSite: "Lax",
+		})
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Logged out successfully",
+		})
 	}
 }
