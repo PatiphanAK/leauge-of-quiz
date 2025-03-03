@@ -63,21 +63,3 @@ func (m *AuthMiddleware) RequireAuth() fiber.Handler {
 	}
 }
 
-// Optional: Add logout handler to clear the cookie
-func (m *AuthMiddleware) Logout() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		c.Cookie(&fiber.Cookie{
-			Name:     "auth_token",
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HTTPOnly: true,
-			SameSite: "Lax",
-		})
-
-		return c.JSON(fiber.Map{
-			"success": true,
-			"message": "Logged out successfully",
-		})
-	}
-}

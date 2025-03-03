@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/patiphanak/league-of-quiz/auth/jwt"
 	"github.com/patiphanak/league-of-quiz/auth/oauth"
 	"github.com/patiphanak/league-of-quiz/config"
@@ -35,6 +36,15 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New()
+	
+    app.Use(cors.New(cors.Config{
+        AllowOrigins:     "http://localhost:4000",
+        AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
+        AllowHeaders:     "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin,Authorization",
+        ExposeHeaders:    "Content-Length",
+        AllowCredentials: true,
+        MaxAge:           86400, // 24 ชั่วโมง
+    }))
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(database.DB, jwtService)

@@ -114,22 +114,14 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		// ถ้าใช้งานบน localhost ในระหว่างการพัฒนา ให้ตั้งค่า Secure เป็น false
 		// ในสภาพแวดล้อมการทำงานจริง (production) ให้เปลี่ยนเป็น true
 		Secure: false,
-		// SameSite: "Lax" มีความเหมาะสมกับ redirects มากกว่า "Strict"
-		SameSite: "Lax",
+		SameSite: "None",
 		MaxAge:   60 * 60 * 24 * 7, // 1 week
 	})
 
 	// ส่งข้อมูลกลับโดยไม่รวม token ใน response body
 	// เนื่องจากเราใช้ HTTP-only cookie แล้ว
-	return c.JSON(fiber.Map{
-		"success": true,
-		"user": fiber.Map{
-			"id":          user.ID,
-			"email":       user.Email,
-			"displayName": user.DisplayName,
-			"pictureUrl":  user.PictureURL,
-		},
-	})
+	frontendURL := "http://localhost:4000/auth/google/callback"
+	return c.Redirect(frontendURL)
 }
 
 // Logout จัดการการออกจากระบบโดยลบ cookie
@@ -146,8 +138,26 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		Secure:   false, // ตั้งเป็น true ในโหมด production
 	})
 
+	frontendURL := "http://localhost:4000"
+	return c.Redirect(frontendURL)
+}
+
+// GetCurrentUser คืนค่าข้อมูลผู้ใช้ปัจจุบันจาก JWT token
+func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
+	// ดึงข้อมูลผู้เล่นจาก Locals ที่ถูกตั้งค่าใน middleware/auth_middleware.go
+	user, ok := c.Locals("user").(models.User)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
 	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Logged out successfully",
+		"user": fiber.Map{
+			"id":          user.ID,
+			"email":       user.Email,
+			"displayName": user.DisplayName,
+			"pictureUrl":  user.PictureURL,
+		},
 	})
 }
