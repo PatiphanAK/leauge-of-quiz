@@ -15,8 +15,9 @@ func SetupRoutes(app *fiber.App, authHandler *handlers.AuthHandler, authMiddlewa
 	app.Use(logger.New())  // สำหรับ log การร้องขอ
 	app.Use(recover.New()) // สำหรับ recover จากการ panics
 
-	// Auth routes
+	// routes
 	SetupAuthRoute(app, authHandler, authMiddleware)
+	SetupQuizRoute(app, &handlers.QuizHandler{}, authMiddleware)
 
 	// Protected routes (ที่ต้องใช้การยืนยันตัวตน)
 	api := app.Group("/api", authMiddleware.RequireAuth()) // ใช้ middleware สำหรับการตรวจสอบการยืนยันตัวตน

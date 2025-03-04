@@ -36,21 +36,22 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New()
-	
-    app.Use(cors.New(cors.Config{
-        AllowOrigins:     "http://localhost:4000",
-        AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
-        AllowHeaders:     "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin,Authorization",
-        ExposeHeaders:    "Content-Length",
-        AllowCredentials: true,
-        MaxAge:           86400, // 24 ชั่วโมง
-    }))
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "http://localhost:4000",
+		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin,Authorization",
+		ExposeHeaders:    "Content-Length",
+		AllowCredentials: true,
+		MaxAge:           86400, // 24 ชั่วโมง
+	}))
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(database.DB, jwtService)
 
 	// Setup routes
 	routes.SetupRoutes(app, authHandler, authMiddleware)
+	routes.SetupQuizRoute(app, &handlers.QuizHandler{DB: database.DB}, authMiddleware)
 
 	// Start the server
 	log.Println("Server starting on port 3000")

@@ -6,16 +6,17 @@ type Quiz struct {
 	ID          uint   `gorm:"primaryKey"` // ใช้ primaryKey แทน primary_key
 	Title       string `gorm:"not null"`
 	Description string `gorm:"not null"`
+	TimeLimit   uint   `gorm:"not null;default:10"` // เพิ่ม default value
+	IsPublished bool   `gorm:"default:false"`
 
 	// สร้าง relation กับ User
 	CreatorID uint `gorm:"not null;index"` // เพิ่ม index
 	Creator   User `gorm:"foreignKey:CreatorID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
-	IsPublished bool `gorm:"default:false"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Questions   []Question `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Categories  []Category `gorm:"many2many:quiz_categories;"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	Questions  []Question `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Categories []Category `gorm:"many2many:quiz_categories;"`
 }
 
 type Question struct {
