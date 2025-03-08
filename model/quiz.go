@@ -8,6 +8,7 @@ type Quiz struct {
 	Description string `gorm:"not null"`
 	TimeLimit   uint   `gorm:"not null;default:10"` // เพิ่ม default value
 	IsPublished bool   `gorm:"default:false"`
+	ImageURL    string `gorm:"default:null"`
 
 	// สร้าง relation กับ User
 	CreatorID uint `gorm:"not null;index"` // เพิ่ม index
@@ -24,12 +25,14 @@ type Question struct {
 	QuizID  uint     `gorm:"not null;index"`
 	Quiz    Quiz     `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"` // เพิ่ม foreignKey
 	Text    string   `gorm:"not null"`
+	ImageURL string   `gorm:"default:null"`
 	Choices []Choice `gorm:"foreignKey:QuestionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
 type Choice struct {
 	ID         uint     `gorm:"primaryKey"`
 	QuestionID uint     `gorm:"not null;index"`
+	ImageURL   string   `gorm:"default:null"`
 	Question   Question `gorm:"foreignKey:QuestionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"` // เพิ่ม foreignKey
 	Text       string   `gorm:"not null"`
 	IsCorrect  bool     `gorm:"not null"`

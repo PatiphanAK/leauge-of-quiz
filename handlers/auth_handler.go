@@ -114,7 +114,7 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		// ถ้าใช้งานบน localhost ในระหว่างการพัฒนา ให้ตั้งค่า Secure เป็น false
 		// ในสภาพแวดล้อมการทำงานจริง (production) ให้เปลี่ยนเป็น true
 		Secure: false,
-		SameSite: "None",
+		SameSite: "Lax",
 		MaxAge:   60 * 60 * 24 * 7, // 1 week
 	})
 

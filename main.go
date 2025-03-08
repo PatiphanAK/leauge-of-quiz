@@ -51,11 +51,14 @@ func main() {
 
 	// Setup routes
 	routes.SetupRoutes(app, authHandler, authMiddleware)
-	routes.SetupQuizRoute(app, &handlers.QuizHandler{DB: database.DB}, authMiddleware)
+
+	// Setup static file server
+	app.Static("/", "./uploads")
 
 	// Start the server
 	log.Println("Server starting on port 3000")
 	if err := app.Listen(":3000"); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
+
 }
