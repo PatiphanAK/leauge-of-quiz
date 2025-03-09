@@ -47,6 +47,7 @@ func InitServices(repos *repositories.Repositories, storagePath string) (*Servic
 	}
 
 	// Initialize file service
+	fileOptions := DefaultFileOptions(storagePath)
 	fileService := NewFileService(fileOptions.BaseDir)
 	fileService.allowedTypes = fileOptions.AllowedTypes
 	fileService.maxFileSize = fileOptions.MaxFileSize

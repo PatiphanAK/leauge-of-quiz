@@ -57,9 +57,10 @@ func (m *AuthMiddleware) RequireAuth() fiber.Handler {
 
 		// เก็บข้อมูลผู้ใช้ใน locals ของ context
 		c.Locals("user", user)
+		// เก็บรหัสผู้ใช้ใน locals ของ context เพื่อให้ handler สามารถเข้าถึงได้
+		c.Locals("userID", user.ID)
 
 		// ดำเนินการต่อไปยัง handler ถัดไป
 		return c.Next()
 	}
 }
-

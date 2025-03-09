@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
 	"strconv"
 
@@ -83,7 +81,6 @@ func (h *QuizHandler) GetQuizByID(c *fiber.Ctx) error {
 	})
 }
 
-// CreateQuiz สร้าง quiz ใหม่
 func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
 	userID, ok := c.Locals("userID").(uint)
@@ -141,16 +138,22 @@ func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 		CreatorID:   userID,
 	}
 
-	// บันทึกข้อมูล
-	if err := h.quizService.CreateQuiz(quiz); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+	// แปลง request.Questions เป็น []services.QuestionData
+	questions := make([]services.QuestionData, len(request.Questions))
+	for i, q := range request.Questions {
+		questions[i].Text = q.Text
+		questions[i].ImageURL = q.ImageURL
+
+		questions[i].Choices = make([]services.ChoiceData, len(q.Choices))
+		for j, c := range q.Choices {
+			questions[i].Choices[j].Text = c.Text
+			questions[i].Choices[j].ImageURL = c.ImageURL
+			questions[i].Choices[j].IsCorrect = c.IsCorrect
+		}
 	}
 
-	// สร้าง transaction เพื่อให้การสร้าง quiz และคำถามอยู่ในหน่วยเดียวกัน
-	// โดยฝากให้ service จัดการ
-	if err := h.quizService.CreateQuizWithQuestionsAndChoices(quiz, request.Questions, request.Categories, userID); err != nil {
+	// สร้าง quiz พร้อมคำถามและตัวเลือก
+	if err := h.quizService.CreateQuizWithQuestionsAndChoices(quiz, questions, request.Categories, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -283,131 +286,6 @@ func (h *QuizHandler) GetMyQuizzes(c *fiber.Ctx) error {
 			"total": count,
 			"page":  page,
 			"limit": limit,
-		},
-	})
-}
-
-// CreateQuizWithForm สร้าง quiz ใหม่พร้อมคำถามและตัวเลือกจาก FormData
-func (h *QuizHandler) CreateQuizWithForm(c *fiber.Ctx) error {
-	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
-	userID, ok := c.Locals("userID").(uint)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "You must be logged in to create a quiz",
-		})
-	}
-
-	// รับข้อมูล quiz จาก FormData
-	quizDataStr := c.FormValue("quizData", "{}")
-	var quizData struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		TimeLimit   uint   `json:"timeLimit"`
-		IsPublished bool   `json:"isPublished"`
-		Categories  []uint `json:"categories"`
-		Questions   []struct {
-			Text    string `json:"text"`
-			Choices []struct {
-				Text      string `json:"text"`
-				IsCorrect bool   `json:"isCorrect"`
-			} `json:"choices"`
-		} `json:"questions"`
-	}
-
-	if err := json.Unmarshal([]byte(quizDataStr), &quizData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid quiz data format",
-		})
-	}
-
-	// ตรวจสอบข้อมูลที่จำเป็น
-	if quizData.Title == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Title is required",
-		})
-	}
-
-	if quizData.Description == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Description is required",
-		})
-	}
-
-	// อัปโหลดรูปภาพของ quiz (ถ้ามี)
-	var quizImageURL string
-	quizImage, err := c.FormFile("quizImage")
-	if err == nil && quizImage != nil {
-		quizImageURL, err = h.fileService.UploadFile(quizImage, "quiz")
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to upload quiz image: " + err.Error(),
-			})
-		}
-	}
-
-	// สร้าง quiz
-	quiz := &models.Quiz{
-		Title:       quizData.Title,
-		Description: quizData.Description,
-		TimeLimit:   quizData.TimeLimit,
-		IsPublished: quizData.IsPublished,
-		ImageURL:    quizImageURL,
-		CreatorID:   userID,
-	}
-
-	// เตรียมข้อมูลคำถามที่มีรูปภาพ
-	questionsWithImages := make([]services.QuestionData, len(quizData.Questions))
-
-	// อัปโหลดรูปภาพของคำถามและตัวเลือก
-	for i, q := range quizData.Questions {
-		// เก็บข้อมูลคำถาม
-		questionsWithImages[i].Text = q.Text
-
-		// อัปโหลดรูปภาพคำถาม (ถ้ามี)
-		questionImageField := fmt.Sprintf("questionImage_%d", i)
-		questionImage, err := c.FormFile(questionImageField)
-		if err == nil && questionImage != nil {
-			questionImageURL, err := h.fileService.UploadFile(questionImage, "question")
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": fmt.Sprintf("Failed to upload question image %d: %s", i, err.Error()),
-				})
-			}
-			questionsWithImages[i].ImageURL = questionImageURL
-		}
-
-		// เตรียมตัวเลือก
-		questionsWithImages[i].Choices = make([]services.ChoiceData, len(q.Choices))
-		for j, choice := range q.Choices {
-			questionsWithImages[i].Choices[j].Text = choice.Text
-			questionsWithImages[i].Choices[j].IsCorrect = choice.IsCorrect
-
-			// อัปโหลดรูปภาพตัวเลือก (ถ้ามี)
-			choiceImageField := fmt.Sprintf("choiceImage_%d_%d", i, j)
-			choiceImage, err := c.FormFile(choiceImageField)
-			if err == nil && choiceImage != nil {
-				choiceImageURL, err := h.fileService.UploadFile(choiceImage, "choice")
-				if err != nil {
-					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-						"error": fmt.Sprintf("Failed to upload choice image %d-%d: %s", i, j, err.Error()),
-					})
-				}
-				questionsWithImages[i].Choices[j].ImageURL = choiceImageURL
-			}
-		}
-	}
-
-	// ใช้ service สร้าง quiz พร้อมคำถามและตัวเลือก
-	if err := h.quizService.CreateQuizWithQuestionsAndChoices(quiz, questionsWithImages, quizData.Categories, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "Quiz created successfully",
-		"data": fiber.Map{
-			"id": quiz.ID,
 		},
 	})
 }

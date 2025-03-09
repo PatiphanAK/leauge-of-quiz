@@ -53,7 +53,7 @@ func main() {
 
 	// Set up handlers
 	authHandler := handlers.NewAuthHandler(database.DB, googleAuth, jwtService)
-	quizHandler := handlers.NewQuizHandler(services.Quiz)
+	quizHandler := handlers.NewQuizHandler(services.Quiz, services.File)
 	uploadHandler := handlers.NewUploadHandler(services.File)
 
 	// Create Fiber app
