@@ -9,16 +9,24 @@ import (
 )
 
 type QuizService struct {
-	quizRepo    *repositories.QuizRepository
-	fileService *FileService
+	quizRepo     *repositories.QuizRepository
+	questionRepo *repositories.QuestionRepository
+	choiceRepo   *repositories.ChoiceRepository
+	fileService  *FileService
 }
 
-// NewQuizService สร้าง instance ใหม่ของ QuizService
-func NewQuizService(quizRepo *repositories.QuizRepository, fileService *FileService) *QuizService {
+func NewQuizService(
+	quizRepo *repositories.QuizRepository,
+	questionRepo *repositories.QuestionRepository,
+	choiceRepo *repositories.ChoiceRepository,
+	fileService *FileService,
+) *QuizService {
 	log.Println("NewQuizService")
 	return &QuizService{
-		quizRepo:    quizRepo,
-		fileService: fileService,
+		quizRepo:     quizRepo,
+		questionRepo: questionRepo,
+		choiceRepo:   choiceRepo,
+		fileService:  fileService,
 	}
 }
 
@@ -153,4 +161,71 @@ func (s *QuizService) UpdateQuizCategories(quizID uint, categoryIDs []uint, curr
 	}
 
 	return s.quizRepo.UpdateQuizCategories(quizID, categoryIDs)
+}
+
+// QuestionData สำหรับข้อมูลคำถาม
+type QuestionData struct {
+	Text     string       `json:"text"`
+	ImageURL string       `json:"imageURL"`
+	Choices  []ChoiceData `json:"choices"`
+}
+
+// ChoiceData สำหรับข้อมูลตัวเลือก
+type ChoiceData struct {
+	Text      string `json:"text"`
+	ImageURL  string `json:"imageURL"`
+	IsCorrect bool   `json:"isCorrect"`
+}
+
+// CreateQuizWithQuestionsAndChoices สร้าง quiz พร้อมคำถามและตัวเลือก
+func (s *QuizService) CreateQuizWithQuestionsAndChoices(quiz *models.Quiz, questions []QuestionData, categories []uint, userID uint) error {
+	// เริ่ม transaction
+	tx := s.quizRepo.GetDB().Begin()
+
+	// สร้าง quiz
+	if err := tx.Create(quiz).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// สร้างความสัมพันธ์กับหมวดหมู่ (ถ้ามี)
+	if len(categories) > 0 {
+		for _, catID := range categories {
+			if err := tx.Exec("INSERT INTO quiz_categories (quiz_id, category_id) VALUES (?, ?)", quiz.ID, catID).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// สร้างคำถามและตัวเลือก
+	for _, qData := range questions {
+		question := models.Question{
+			QuizID:   quiz.ID,
+			Text:     qData.Text,
+			ImageURL: qData.ImageURL,
+		}
+
+		if err := tx.Create(&question).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		for _, cData := range qData.Choices {
+			choice := models.Choice{
+				QuestionID: question.ID,
+				Text:       cData.Text,
+				ImageURL:   cData.ImageURL,
+				IsCorrect:  cData.IsCorrect,
+			}
+
+			if err := tx.Create(&choice).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// Commit transaction
+	return tx.Commit().Error
 }

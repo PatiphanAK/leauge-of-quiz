@@ -12,6 +12,10 @@ type QuizRepository struct {
 	db *gorm.DB
 }
 
+func (r *QuizRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
 // NewQuizRepository สร้าง instance ใหม่ของ QuizRepository
 func NewQuizRepository(db *gorm.DB) *QuizRepository {
 	log.Println("NewQuizRepository")

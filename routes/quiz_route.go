@@ -8,7 +8,7 @@ import (
 
 func SetupQuizRoute(app *fiber.App, quizHandler *handlers.QuizHandler, authMiddleware *middleware.AuthMiddleware) {
 	apiV1 := app.Group("/api/v1")
-	quizRoutes := apiV1.Group("/quiz")
+	quizRoutes := apiV1.Group("/quizzes")
 	quizRoutes.Get("/", quizHandler.GetQuizzes)
 	quizRoutes.Get("/:id", quizHandler.GetQuizByID)
 	quizRoutes.Post("/", quizHandler.CreateQuiz)

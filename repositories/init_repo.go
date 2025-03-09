@@ -6,16 +6,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// Repositories holds all repository instances
 type Repositories struct {
-	Quiz *QuizRepository
+	Quiz     *QuizRepository
+	Question *QuestionRepository
+	Choice   *ChoiceRepository
 }
 
-// InitRepositories initializes all repositories at once
 func InitRepositories(db *gorm.DB) *Repositories {
 	log.Println("Initializing all repositories")
 
 	return &Repositories{
-		Quiz: NewQuizRepository(db),
+		Quiz:     NewQuizRepository(db),
+		Question: NewQuestionRepository(db),
+		Choice:   NewChoiceRepository(db),
 	}
 }
