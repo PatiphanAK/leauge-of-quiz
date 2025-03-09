@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -11,7 +12,7 @@ import (
 	"github.com/patiphanak/league-of-quiz/database"
 	"github.com/patiphanak/league-of-quiz/handlers"
 	middleware "github.com/patiphanak/league-of-quiz/middlewares"
-	"github.com/patiphanak/league-of-quiz/routes"
+	routes "github.com/patiphanak/league-of-quiz/routes"
 )
 
 func main() {
@@ -33,6 +34,10 @@ func main() {
 
 	// Create an instance of AuthHandler with dependencies
 	authHandler := handlers.NewAuthHandler(database.DB, googleAuth, jwtService)
+
+	// Upload path
+	uploadDir := "./uploads"
+	os.MkdirAll(uploadDir, 0755)
 
 	// Create Fiber app
 	app := fiber.New()

@@ -17,4 +17,5 @@ func SetupRoutes(app *fiber.App, authHandler *handlers.AuthHandler, authMiddlewa
 	// routes
 	SetupAuthRoute(app, authHandler, authMiddleware)
 	// SetupQuizRoute(app, &handlers.QuizHandler{DB: database.DB}, authMiddleware)
+	SetupUploadRoutes(app, &handlers.UploadHandler{}, authMiddleware)
 }
