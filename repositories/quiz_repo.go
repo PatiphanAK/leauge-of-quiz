@@ -165,3 +165,61 @@ func (r *QuizRepository) UpdateQuizCategories(quizID uint, categoryIDs []uint) e
 	// Commit transaction
 	return tx.Commit().Error
 }
+
+func (r *QuizRepository) GetFilteredQuizzes(offset, limit int, isPublished string, search string, categories []uint) ([]models.Quiz, int64, error) {
+	var quizzes []models.Quiz
+	var count int64
+
+	// สร้าง query base
+	query := r.db.Model(&models.Quiz{})
+
+	// ใช้ transaction หรือ subquery สำหรับการนับจำนวน
+	countQuery := r.db.Model(&models.Quiz{})
+
+	// เพิ่มเงื่อนไขการกรอง
+	if isPublished == "true" {
+		query = query.Where("is_published = ?", true)
+		countQuery = countQuery.Where("is_published = ?", true)
+	} else if isPublished == "false" {
+		query = query.Where("is_published = ?", false)
+		countQuery = countQuery.Where("is_published = ?", false)
+	}
+
+	// ค้นหาจากชื่อหรือคำอธิบาย
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		query = query.Where("title LIKE ? OR description LIKE ?", searchPattern, searchPattern)
+		countQuery = countQuery.Where("title LIKE ? OR description LIKE ?", searchPattern, searchPattern)
+	}
+
+	// กรองตามหมวดหมู่
+	if len(categories) > 0 {
+		// ใช้ joins หรือ subquery เพื่อกรองตามหมวดหมู่
+		query = query.Joins("JOIN quiz_categories ON quizzes.id = quiz_categories.quiz_id").
+			Where("quiz_categories.category_id IN ?", categories).
+			Group("quizzes.id")
+
+		countQuery = countQuery.Joins("JOIN quiz_categories ON quizzes.id = quiz_categories.quiz_id").
+			Where("quiz_categories.category_id IN ?", categories).
+			Group("quizzes.id")
+	}
+
+	// นับจำนวน quizzes
+	if err := countQuery.Count(&count).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// ดึงข้อมูล quizzes
+	err := query.
+		Preload("Categories").
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&quizzes).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return quizzes, count, nil
+}

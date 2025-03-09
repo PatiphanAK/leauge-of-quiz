@@ -12,10 +12,12 @@ func SetupQuizRoute(app *fiber.App, quizHandler *handlers.QuizHandler, authMiddl
 	quizRoutes.Get("/", quizHandler.GetQuizzes)
 	quizRoutes.Get("/:id", quizHandler.GetQuizByID)
 	quizRoutes.Get("/my", authMiddleware.RequireAuth(), quizHandler.GetMyQuizzes)
+	quizRoutes.Get("/categories", quizHandler.GetCategories)
 
 	// ต้องมีการตรวจสอบ authentication
 	quizRoutes.Use(authMiddleware.RequireAuth())
 	quizRoutes.Post("/", quizHandler.CreateQuiz)
+	quizRoutes.Post("/form", quizHandler.CreateQuizWithForm)
 	quizRoutes.Patch("/:id", quizHandler.PatchQuiz)
 	quizRoutes.Delete("/:id", quizHandler.DeleteQuiz)
 }

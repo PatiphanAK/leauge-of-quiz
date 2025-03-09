@@ -89,9 +89,7 @@ func (s *QuizService) PatchQuiz(quizID uint, updates map[string]interface{}, cur
 	}
 
 	// ป้องกันการเปลี่ยน CreatorID
-	if _, exists := updates["creator_id"]; exists {
-		delete(updates, "creator_id")
-	}
+	delete(updates, "creator_id")
 
 	// สร้าง quiz object เพื่อที่จะ update
 	quiz := &models.Quiz{
@@ -228,4 +226,17 @@ func (s *QuizService) CreateQuizWithQuestionsAndChoices(quiz *models.Quiz, quest
 
 	// Commit transaction
 	return tx.Commit().Error
+}
+
+func (s *QuizService) GetFilteredQuizzes(offset, limit int, isPublished string, search string, categories []uint) ([]models.Quiz, int64, error) {
+	return s.quizRepo.GetFilteredQuizzes(offset, limit, isPublished, search, categories)
+}
+
+func (s *QuizService) GetAllCategories() ([]models.Category, error) {
+	var categories []models.Category
+	err := s.quizRepo.GetDB().Find(&categories).Error
+	if err != nil {
+		return nil, err
+	}
+	return categories, nil
 }

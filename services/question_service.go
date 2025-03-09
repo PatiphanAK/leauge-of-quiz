@@ -95,9 +95,7 @@ func (s *QuestionService) PatchQuestion(questionID uint, updates map[string]inte
 	}
 
 	// ป้องกันการเปลี่ยน QuizID
-	if _, exists := updates["quiz_id"]; exists {
-		delete(updates, "quiz_id")
-	}
+	delete(updates, "quiz_id")
 
 	return s.questionRepo.UpdateQuestionPartial(questionID, updates)
 }
