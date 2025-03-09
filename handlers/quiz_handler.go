@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -15,15 +16,17 @@ type QuizHandler struct {
 
 // NewQuizHandler สร้าง instance ใหม่ของ QuizHandler
 func NewQuizHandler(quizService *services.QuizService) *QuizHandler {
+	log.Println("NewQuizHandler")
 	return &QuizHandler{quizService: quizService}
 }
 
 // GetQuizzes ดึงข้อมูล quizzes ทั้งหมด
 func (h *QuizHandler) GetQuizzes(c *fiber.Ctx) error {
 	// รับ pagination parameters
-	page, _ := strconv.Atoi(c.Query("page", "1"))
+	log.Println("get api/v1/quizzes")
+	page, _ := strconv.Atoi(c.Query("page", "0"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-	
+
 	// ตรวจสอบว่าต้องการเฉพาะ published quizzes หรือไม่
 	publishedOnly := c.Query("published", "false") == "true"
 
@@ -178,7 +181,7 @@ func (h *QuizHandler) PatchQuiz(c *fiber.Ctx) error {
 	var categories []uint
 	if categoriesInterface, exists := updates["categories"]; exists {
 		delete(updates, "categories")
-		
+
 		// แปลง interface{} เป็น []uint
 		if categoriesArray, ok := categoriesInterface.([]interface{}); ok {
 			for _, category := range categoriesArray {

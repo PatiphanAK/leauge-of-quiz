@@ -2,9 +2,10 @@ package services
 
 import (
 	"errors"
+	"log"
 
 	models "github.com/patiphanak/league-of-quiz/model"
-	"github.com/patiphanak/league-of-quiz/repositories"
+	repositories "github.com/patiphanak/league-of-quiz/repositories"
 )
 
 type QuizService struct {
@@ -14,6 +15,7 @@ type QuizService struct {
 
 // NewQuizService สร้าง instance ใหม่ของ QuizService
 func NewQuizService(quizRepo *repositories.QuizRepository, fileService *FileService) *QuizService {
+	log.Println("NewQuizService")
 	return &QuizService{
 		quizRepo:    quizRepo,
 		fileService: fileService,
@@ -32,6 +34,7 @@ func (s *QuizService) GetQuizByID(id uint) (*models.Quiz, error) {
 
 // GetAllQuizzes ดึงข้อมูล quizzes ทั้งหมด
 func (s *QuizService) GetAllQuizzes(page, limit int) ([]models.Quiz, int64, error) {
+	log.Println("get  service of all quizzes")
 	return s.quizRepo.GetAllQuizzes(page, limit)
 }
 

@@ -22,21 +22,12 @@ const (
 
 // FileService สำหรับการจัดการไฟล์
 type FileService struct {
-	baseDir     string
+	baseDir      string
 	allowedTypes []string
-	maxFileSize int64
+	maxFileSize  int64
 }
 
-// NewFileService สร้าง instance ใหม่ของ FileService
 func NewFileService(baseDir string) *FileService {
-	// สร้างโฟลเดอร์หลัก
-	os.MkdirAll(baseDir, 0755)
-
-	// สร้างโฟลเดอร์ย่อย
-	for _, fileType := range []string{"quiz", "question", "choice"} {
-		os.MkdirAll(filepath.Join(baseDir, fileType), 0755)
-	}
-
 	return &FileService{
 		baseDir: baseDir,
 		allowedTypes: []string{

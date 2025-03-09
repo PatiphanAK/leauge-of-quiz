@@ -9,13 +9,13 @@ import (
 )
 
 // SetupRoutes ตั้งค่าเส้นทางทั้งหมด
-func SetupRoutes(app *fiber.App, authHandler *handlers.AuthHandler, authMiddleware *middleware.AuthMiddleware) {
+func SetupRoutes(app *fiber.App, authHandler *handlers.AuthHandler, authMiddleware *middleware.AuthMiddleware, quizHandler *handlers.QuizHandler, uploadHandler *handlers.UploadHandler) {
 	// Middleware
 	app.Use(logger.New())  // สำหรับ log การร้องขอ
 	app.Use(recover.New()) // สำหรับ recover จากการ panics
 
 	// routes
 	SetupAuthRoute(app, authHandler, authMiddleware)
-	SetupUploadRoutes(app, &handlers.UploadHandler{}, authMiddleware)
-	SetupQuizRoute(app, &handlers.QuizHandler{}, authMiddleware)
+	SetupUploadRoutes(app, uploadHandler, authMiddleware)
+	SetupQuizRoute(app, quizHandler, authMiddleware)
 }

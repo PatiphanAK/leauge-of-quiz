@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"errors"
+	"log"
 
 	models "github.com/patiphanak/league-of-quiz/model"
 	"gorm.io/gorm"
@@ -13,6 +14,7 @@ type QuizRepository struct {
 
 // NewQuizRepository สร้าง instance ใหม่ของ QuizRepository
 func NewQuizRepository(db *gorm.DB) *QuizRepository {
+	log.Println("NewQuizRepository")
 	return &QuizRepository{db: db}
 }
 
