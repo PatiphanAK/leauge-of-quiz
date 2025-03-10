@@ -227,3 +227,7 @@ func (r *QuizRepository) GetFilteredQuizzes(offset, limit int, isPublished strin
 
 	return quizzes, count, nil
 }
+
+func (r *QuizRepository) UpdateQuizWithMap(quizID uint, updates map[string]interface{}) error {
+	return r.db.Model(&models.Quiz{ID: quizID}).Updates(updates).Error
+}

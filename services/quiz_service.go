@@ -79,7 +79,7 @@ func (s *QuizService) UpdateQuiz(quiz *models.Quiz, currentUserID uint) error {
 
 // PatchQuiz อัปเดตข้อมูล quiz บางส่วน
 func (s *QuizService) PatchQuiz(quizID uint, updates map[string]interface{}, currentUserID uint) error {
-	// ตรวจสอบว่าผู้ใช้เป็นเจ้าของ quiz หรือไม่
+	// Ownership check
 	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, currentUserID)
 	if err != nil {
 		return err
@@ -88,15 +88,11 @@ func (s *QuizService) PatchQuiz(quizID uint, updates map[string]interface{}, cur
 		return errors.New("unauthorized: you are not the owner of this quiz")
 	}
 
-	// ป้องกันการเปลี่ยน CreatorID
+	// Prevent changing CreatorID
 	delete(updates, "creator_id")
 
-	// สร้าง quiz object เพื่อที่จะ update
-	quiz := &models.Quiz{
-		ID: quizID,
-	}
-
-	return s.quizRepo.UpdateQuiz(quiz)
+	// Now call the repository with map updates
+	return s.quizRepo.UpdateQuizWithMap(quizID, updates)
 }
 
 // DeleteQuiz ลบ quiz

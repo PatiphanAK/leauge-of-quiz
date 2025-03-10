@@ -182,7 +182,6 @@ func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 
 // PatchQuiz อัปเดตข้อมูล quiz บางส่วน
 func (h *QuizHandler) PatchQuiz(c *fiber.Ctx) error {
-	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
 	userID, ok := c.Locals("userID").(uint)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -190,7 +189,6 @@ func (h *QuizHandler) PatchQuiz(c *fiber.Ctx) error {
 		})
 	}
 
-	// รับ ID จาก parameter
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -198,44 +196,63 @@ func (h *QuizHandler) PatchQuiz(c *fiber.Ctx) error {
 		})
 	}
 
-	// รับข้อมูลจาก request body
-	var updates map[string]interface{}
-	if err := c.BodyParser(&updates); err != nil {
+	// Parse the request body
+	var requestData struct {
+		Title       string `json:"Title"`
+		Description string `json:"Description"`
+		TimeLimit   uint   `json:"TimeLimit"`
+		IsPublished bool   `json:"IsPublished"`
+		ImageURL    string `json:"ImageURL"`
+		Categories  []uint `json:"Categories"` // We'll extract IDs directly
+	}
+
+	if err := c.BodyParser(&requestData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
 	}
 
-	// ตรวจสอบว่ามีการส่ง categories มาหรือไม่
-	var categories []uint
-	if categoriesInterface, exists := updates["categories"]; exists {
-		delete(updates, "categories")
+	// Create a map of only the quiz fields we want to update
+	updates := make(map[string]interface{})
 
-		// แปลง interface{} เป็น []uint
-		if categoriesArray, ok := categoriesInterface.([]interface{}); ok {
-			for _, category := range categoriesArray {
-				if categoryFloat, ok := category.(float64); ok {
-					categories = append(categories, uint(categoryFloat))
-				}
-			}
-		}
+	// Only add fields that were provided in the request (not zero values)
+	// This way we only update fields that were explicitly included
+	if requestData.Title != "" {
+		updates["title"] = requestData.Title
+	}
+	if requestData.Description != "" {
+		updates["description"] = requestData.Description
+	}
+	if requestData.TimeLimit > 0 {
+		updates["time_limit"] = requestData.TimeLimit
+	}
+	// Boolean fields need special handling - they could legitimately be false
+	// You might need to check if the field was included in the original JSON
+	updates["is_published"] = requestData.IsPublished
+
+	if requestData.ImageURL != "" {
+		updates["image_url"] = requestData.ImageURL
 	}
 
-	// อัปเดตข้อมูล quiz
-	if err := h.quizService.PatchQuiz(uint(id), updates, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-
-	// อัปเดตหมวดหมู่ (ถ้ามี)
-	if len(categories) > 0 {
-		if err := h.quizService.UpdateQuizCategories(uint(id), categories, userID); err != nil {
+	// Update quiz fields
+	if len(updates) > 0 {
+		if err := h.quizService.PatchQuiz(uint(id), updates, userID); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": err.Error(),
 			})
 		}
 	}
+
+	// Update categories separately if provided
+	if len(requestData.Categories) > 0 {
+		if err := h.quizService.UpdateQuizCategories(uint(id), requestData.Categories, userID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+	}
+
+	// For updating questions and choices, you would need separate endpoints/methods
 
 	return c.JSON(fiber.Map{
 		"message": "Quiz updated successfully",
