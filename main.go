@@ -82,7 +82,7 @@ func main() {
 
 	// Set up static file server for uploaded files
 	// This should point to the same base directory used by FileService
-	app.Static("/upload", storageBasePath)
+	app.Static("/storage", storageBasePath)
 
 	// Set up graceful shutdown
 	c := make(chan os.Signal, 1)

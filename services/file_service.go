@@ -52,6 +52,8 @@ func (s *FileService) isAllowedFileType(contentType string) bool {
 
 // UploadFile อัปโหลดไฟล์และคืนค่า URL
 func (s *FileService) UploadFile(file *multipart.FileHeader, fileType string) (string, error) {
+	// Existing code remains the same for file validation and saving
+
 	// ตรวจสอบขนาดไฟล์
 	if file.Size > s.maxFileSize {
 		return "", errors.New("file size exceeds the maximum limit of 5MB")
@@ -102,8 +104,8 @@ func (s *FileService) UploadFile(file *multipart.FileHeader, fileType string) (s
 		}
 	}
 
-	// สร้าง URL สำหรับเข้าถึงไฟล์
-	fileURL := fmt.Sprintf("/upload/%s/%s", fileType, filename)
+	// Updated URL format to match what's expected, with localhost:3000 prefix
+	fileURL := fmt.Sprintf("localhost:3000/storage/%s/%s", fileType, filename)
 
 	return fileURL, nil
 }
@@ -132,13 +134,16 @@ func (s *FileService) DeleteFile(filename string, fileType string) error {
 
 // GetFilePath คืนค่าเส้นทางไฟล์จาก URL
 func (s *FileService) GetFilePath(fileURL string) (string, string, error) {
+	// Remove localhost:3000 prefix if present
+	fileURL = strings.TrimPrefix(fileURL, "localhost:3000")
+
 	// ตรวจสอบว่า URL มีรูปแบบที่ถูกต้องหรือไม่
-	if !strings.HasPrefix(fileURL, "/upload/") {
+	if !strings.HasPrefix(fileURL, "/storage/") {
 		return "", "", errors.New("invalid file URL format")
 	}
 
-	// แยกส่วนของ URL
-	parts := strings.Split(strings.TrimPrefix(fileURL, "/upload/"), "/")
+	// แยกส่วนของ URL (updated to match the new URL format)
+	parts := strings.Split(strings.TrimPrefix(fileURL, "/storage/"), "/")
 	if len(parts) != 2 {
 		return "", "", errors.New("invalid file URL format")
 	}
@@ -156,8 +161,11 @@ func (s *FileService) GetFilePath(fileURL string) (string, string, error) {
 func (s *FileService) UpdateFile(file *multipart.FileHeader, oldFileURL string, fileType string) (string, error) {
 	// ถ้ามีไฟล์เก่า ให้ลบออก
 	if oldFileURL != "" {
-		// แยกชื่อไฟล์จาก URL
-		oldFilename := strings.TrimPrefix(oldFileURL, fmt.Sprintf("/upload/%s/", fileType))
+		// Remove localhost:3000 prefix if present
+		oldFileURL = strings.TrimPrefix(oldFileURL, "localhost:3000")
+
+		// แยกชื่อไฟล์จาก URL (updated to match the new URL format)
+		oldFilename := strings.TrimPrefix(oldFileURL, fmt.Sprintf("/storage/%s/", fileType))
 		if oldFilename != "" {
 			if err := s.DeleteFile(oldFilename, fileType); err != nil {
 				// ไม่ต้องคืนค่าข้อผิดพลาด เพราะเราต้องการอัปโหลดไฟล์ใหม่ต่อไป

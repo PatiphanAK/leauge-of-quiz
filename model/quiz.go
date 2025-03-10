@@ -11,9 +11,8 @@ type Quiz struct {
 	ImageURL    string `gorm:"default:null"`
 
 	// สร้าง relation กับ User
-	CreatorID uint `gorm:"not null;index"` // เพิ่ม index
-	Creator   User `gorm:"foreignKey:CreatorID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-
+	CreatorID  uint `gorm:"not null;index"` // เพิ่ม index
+	Creator    User `gorm:"foreignKey:CreatorID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	Questions  []Question `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
@@ -21,12 +20,12 @@ type Quiz struct {
 }
 
 type Question struct {
-	ID      uint     `gorm:"primaryKey"`
-	QuizID  uint     `gorm:"not null;index"`
-	Quiz    Quiz     `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"` // เพิ่ม foreignKey
-	Text    string   `gorm:"not null"`
+	ID       uint     `gorm:"primaryKey"`
+	QuizID   uint     `gorm:"not null;index"`
+	Quiz     Quiz     `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"` // เพิ่ม foreignKey
+	Text     string   `gorm:"not null"`
 	ImageURL string   `gorm:"default:null"`
-	Choices []Choice `gorm:"foreignKey:QuestionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Choices  []Choice `gorm:"foreignKey:QuestionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 
 type Choice struct {

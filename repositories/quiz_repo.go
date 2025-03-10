@@ -166,6 +166,8 @@ func (r *QuizRepository) UpdateQuizCategories(quizID uint, categoryIDs []uint) e
 	return tx.Commit().Error
 }
 
+// Modified function in repositories/quiz_repo.go
+
 func (r *QuizRepository) GetFilteredQuizzes(offset, limit int, isPublished string, search string, categories []uint) ([]models.Quiz, int64, error) {
 	var quizzes []models.Quiz
 	var count int64
@@ -209,9 +211,11 @@ func (r *QuizRepository) GetFilteredQuizzes(offset, limit int, isPublished strin
 		return nil, 0, err
 	}
 
-	// ดึงข้อมูล quizzes
+	// ดึงข้อมูล quizzes with Questions and Choices
 	err := query.
 		Preload("Categories").
+		Preload("Questions").         // Add preloading of Questions
+		Preload("Questions.Choices"). // Add preloading of Choices
 		Offset(offset).
 		Limit(limit).
 		Order("created_at DESC").

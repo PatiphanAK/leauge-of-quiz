@@ -10,5 +10,4 @@ type User struct {
 	Email       string
 	DisplayName string
 	PictureURL  string
-	Quiz        []Quiz `gorm:"foreignKey:CreatorID"`
 }

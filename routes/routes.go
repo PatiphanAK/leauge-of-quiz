@@ -13,6 +13,7 @@ func SetupRoutes(app *fiber.App, authHandler *handlers.AuthHandler, authMiddlewa
 	// Middleware
 	app.Use(logger.New())  // สำหรับ log การร้องขอ
 	app.Use(recover.New()) // สำหรับ recover จากการ panics
+	app.Use(middleware.TransformResponse())
 
 	// routes
 	SetupAuthRoute(app, authHandler, authMiddleware)
