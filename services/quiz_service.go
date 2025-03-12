@@ -236,3 +236,188 @@ func (s *QuizService) GetAllCategories() ([]models.Category, error) {
 	}
 	return categories, nil
 }
+
+/* Extra Service  */
+
+// GetQuestionsByQuizID delegates to QuestionRepository
+func (s *QuizService) GetQuestionsByQuizID(quizID uint) ([]models.Question, error) {
+	return s.questionRepo.GetQuestionsByQuizID(quizID)
+}
+
+// DeleteQuestion delegates to QuestionService
+func (s *QuizService) DeleteQuestion(questionID uint, userID uint) error {
+	// First check if the user owns the quiz that contains this question
+	quizID, err := s.questionRepo.GetQuizIDByQuestionID(questionID)
+	if err != nil {
+		return err
+	}
+
+	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, userID)
+	if err != nil {
+		return err
+	}
+	if !isOwner {
+		return errors.New("unauthorized: you are not the owner of this quiz")
+	}
+
+	// Get the question to access its images and choices
+	question, err := s.questionRepo.GetQuestionByID(questionID)
+	if err != nil {
+		return err
+	}
+
+	// Delete the question's image if it exists
+	if question.ImageURL != "" {
+		filePath, fileType, err := s.fileService.GetFilePath(question.ImageURL)
+		if err == nil {
+			_ = s.fileService.DeleteFile(filePath, fileType)
+		}
+	}
+
+	// Delete choices' images
+	for _, choice := range question.Choices {
+		if choice.ImageURL != "" {
+			filePath, fileType, err := s.fileService.GetFilePath(choice.ImageURL)
+			if err == nil {
+				_ = s.fileService.DeleteFile(filePath, fileType)
+			}
+		}
+	}
+
+	// Delete the question (will cascade delete choices due to foreign key)
+	return s.questionRepo.DeleteQuestion(questionID)
+}
+
+// CreateQuestion delegates to QuestionRepository
+func (s *QuizService) CreateQuestion(question *models.Question, userID uint) error {
+	// Check if user owns the quiz
+	isOwner, err := s.quizRepo.CheckQuizOwnership(question.QuizID, userID)
+	if err != nil {
+		return err
+	}
+	if !isOwner {
+		return errors.New("unauthorized: you are not the owner of this quiz")
+	}
+
+	return s.questionRepo.CreateQuestion(question)
+}
+
+// UpdateQuestion delegates to QuestionRepository
+func (s *QuizService) UpdateQuestion(question *models.Question, userID uint) error {
+	// Check if user owns the quiz that contains this question
+	quizID, err := s.questionRepo.GetQuizIDByQuestionID(question.ID)
+	if err != nil {
+		return err
+	}
+
+	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, userID)
+	if err != nil {
+		return err
+	}
+	if !isOwner {
+		return errors.New("unauthorized: you are not the owner of this quiz")
+	}
+
+	// Make sure the question doesn't change its quiz
+	existingQuestion, err := s.questionRepo.GetQuestionByID(question.ID)
+	if err != nil {
+		return err
+	}
+	question.QuizID = existingQuestion.QuizID
+
+	return s.questionRepo.UpdateQuestion(question)
+}
+
+// GetChoicesByQuestionID delegates to ChoiceRepository
+func (s *QuizService) GetChoicesByQuestionID(questionID uint) ([]models.Choice, error) {
+	return s.choiceRepo.GetChoicesByQuestionID(questionID)
+}
+
+// DeleteChoice delegates to ChoiceRepository
+func (s *QuizService) DeleteChoice(choiceID uint, userID uint) error {
+	// Get the question ID for this choice
+	questionID, err := s.choiceRepo.GetQuestionIDByChoiceID(choiceID)
+	if err != nil {
+		return err
+	}
+
+	// Get the quiz ID for this question
+	quizID, err := s.questionRepo.GetQuizIDByQuestionID(questionID)
+	if err != nil {
+		return err
+	}
+
+	// Check if the user owns the quiz
+	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, userID)
+	if err != nil {
+		return err
+	}
+	if !isOwner {
+		return errors.New("unauthorized: you are not the owner of this quiz")
+	}
+
+	// Get the choice to access its image URL
+	choice, err := s.choiceRepo.GetChoiceByID(choiceID)
+	if err != nil {
+		return err
+	}
+
+	// Delete the choice's image if it exists
+	if choice.ImageURL != "" {
+		filePath, fileType, err := s.fileService.GetFilePath(choice.ImageURL)
+		if err == nil {
+			_ = s.fileService.DeleteFile(filePath, fileType)
+		}
+	}
+
+	return s.choiceRepo.DeleteChoice(choiceID)
+}
+
+// CreateChoice delegates to ChoiceRepository
+func (s *QuizService) CreateChoice(choice *models.Choice, userID uint) error {
+	// Get the quiz ID for this question
+	quizID, err := s.questionRepo.GetQuizIDByQuestionID(choice.QuestionID)
+	if err != nil {
+		return err
+	}
+
+	// Check if the user owns the quiz
+	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, userID)
+	if err != nil {
+		return err
+	}
+	if !isOwner {
+		return errors.New("unauthorized: you are not the owner of this quiz")
+	}
+
+	return s.choiceRepo.CreateChoice(choice)
+}
+
+// UpdateChoice delegates to ChoiceRepository
+func (s *QuizService) UpdateChoice(choice *models.Choice, userID uint) error {
+	// Get existing choice to get its question ID
+	existingChoice, err := s.choiceRepo.GetChoiceByID(choice.ID)
+	if err != nil {
+		return err
+	}
+
+	// Get the quiz ID for this question
+	quizID, err := s.questionRepo.GetQuizIDByQuestionID(existingChoice.QuestionID)
+	if err != nil {
+		return err
+	}
+
+	// Check if the user owns the quiz
+	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, userID)
+	if err != nil {
+		return err
+	}
+	if !isOwner {
+		return errors.New("unauthorized: you are not the owner of this quiz")
+	}
+
+	// Ensure the choice doesn't change its question
+	choice.QuestionID = existingChoice.QuestionID
+
+	return s.choiceRepo.UpdateChoice(choice)
+}
