@@ -26,6 +26,20 @@ type UpdateQuizRequest struct {
 	Questions   []QuestionRequest `json:"questions"`
 }
 
+type UpdateQuestionRequest struct {
+	ID	   uint              `json:"id,omitempty"`
+	Text     string            `json:"text"`
+	ImageURL string            `json:"imageURL,omitempty"`
+	Choices  []CreateChoiceRequest `json:"choices"`
+}
+
+type UpdateChoiceRequest struct {
+	ID 	  uint   `json:"id,omitempty"`
+	Text      string `json:"text"`
+	ImageURL  string `json:"imageURL,omitempty"`
+	IsCorrect bool   `json:"isCorrect"`
+}
+
 type ChoiceFormData struct {
 	ID        uint   `json:"Id,omitempty"`
 	Text      string `json:"Text"`
@@ -70,5 +84,4 @@ type CreateQuizRequest struct {
 	IsPublished bool              `json:"isPublished"`
 	ImageURL    string            `json:"imageURL,omitempty"`
 	Categories  []uint            `json:"categories"`
-	Questions   []CreateQuestionRequest `json:"questions"`
 }

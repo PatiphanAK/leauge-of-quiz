@@ -17,8 +17,6 @@ func SetupQuizRoute(app *fiber.App, quizHandler *handlers.QuizHandler, authMiddl
 	// ต้องมีการตรวจสอบ authentication
 	quizRoutes.Use(authMiddleware.RequireAuth())
 	quizRoutes.Post("/", quizHandler.CreateQuiz)
-	quizRoutes.Post("/form", quizHandler.CreateQuizWithForm)
-	quizRoutes.Patch("/:id/form", quizHandler.PatchQuizWithForm)
 	quizRoutes.Patch("/:id", quizHandler.UpdateQuiz)
 	quizRoutes.Delete("/:id", quizHandler.DeleteQuiz)
 	
