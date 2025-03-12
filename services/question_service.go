@@ -2,11 +2,13 @@ package services
 
 import (
 	"errors"
+	"mime/multipart"
 
 	models "github.com/patiphanak/league-of-quiz/model"
 	"github.com/patiphanak/league-of-quiz/repositories"
 )
 
+// QuestionService สำหรับการจัดการ question
 type QuestionService struct {
 	questionRepo *repositories.QuestionRepository
 	quizRepo     *repositories.QuizRepository
@@ -27,7 +29,7 @@ func NewQuestionService(
 }
 
 // CreateQuestion สร้างคำถามใหม่
-func (s *QuestionService) CreateQuestion(question *models.Question, currentUserID uint) error {
+func (s *QuestionService) CreateQuestion(question *models.Question, imageFile *multipart.FileHeader, currentUserID uint) error {
 	// ตรวจสอบว่าผู้ใช้เป็นเจ้าของ quiz หรือไม่
 	isOwner, err := s.quizRepo.CheckQuizOwnership(question.QuizID, currentUserID)
 	if err != nil {
@@ -37,6 +39,16 @@ func (s *QuestionService) CreateQuestion(question *models.Question, currentUserI
 		return errors.New("unauthorized: you are not the owner of this quiz")
 	}
 
+	// จัดการไฟล์รูปภาพ
+	if imageFile != nil {
+		imageURL, err := s.fileService.UploadFile(imageFile, string(QuestionType))
+		if err != nil {
+			return err
+		}
+		question.ImageURL = imageURL
+	}
+
+	// บันทึกข้อมูลคำถาม
 	return s.questionRepo.CreateQuestion(question)
 }
 
@@ -51,7 +63,7 @@ func (s *QuestionService) GetQuestionsByQuizID(quizID uint) ([]models.Question, 
 }
 
 // UpdateQuestion อัปเดตข้อมูลคำถาม
-func (s *QuestionService) UpdateQuestion(question *models.Question, currentUserID uint) error {
+func (s *QuestionService) UpdateQuestion(question *models.Question, imageFile *multipart.FileHeader, currentUserID uint) error {
 	// ดึง QuizID จาก QuestionID
 	quizID, err := s.questionRepo.GetQuizIDByQuestionID(question.ID)
 	if err != nil {
@@ -67,18 +79,33 @@ func (s *QuestionService) UpdateQuestion(question *models.Question, currentUserI
 		return errors.New("unauthorized: you are not the owner of this quiz")
 	}
 
-	// ป้องกันการเปลี่ยน QuizID
+	// ดึงข้อมูลคำถามเดิม
 	existingQuestion, err := s.questionRepo.GetQuestionByID(question.ID)
 	if err != nil {
 		return err
 	}
+	
+	// ป้องกันการเปลี่ยน QuizID
 	question.QuizID = existingQuestion.QuizID
 
+	// จัดการไฟล์รูปภาพ
+	if imageFile != nil {
+		imageURL, err := s.fileService.UpdateFile(imageFile, existingQuestion.ImageURL, string(QuestionType))
+		if err != nil {
+			return err
+		}
+		question.ImageURL = imageURL
+	} else {
+		// ถ้าไม่มีการอัปโหลดรูปภาพใหม่ ให้ใช้รูปภาพเดิม
+		question.ImageURL = existingQuestion.ImageURL
+	}
+
+	// อัปเดตข้อมูลคำถาม
 	return s.questionRepo.UpdateQuestion(question)
 }
 
 // PatchQuestion อัปเดตข้อมูลคำถามบางส่วน
-func (s *QuestionService) PatchQuestion(questionID uint, updates map[string]interface{}, currentUserID uint) error {
+func (s *QuestionService) PatchQuestion(questionID uint, updates map[string]interface{}, imageFile *multipart.FileHeader, currentUserID uint) error {
 	// ดึง QuizID จาก QuestionID
 	quizID, err := s.questionRepo.GetQuizIDByQuestionID(questionID)
 	if err != nil {
@@ -97,6 +124,22 @@ func (s *QuestionService) PatchQuestion(questionID uint, updates map[string]inte
 	// ป้องกันการเปลี่ยน QuizID
 	delete(updates, "quiz_id")
 
+	// จัดการไฟล์รูปภาพ
+	if imageFile != nil {
+		// ดึงข้อมูลคำถามเดิม
+		existingQuestion, err := s.questionRepo.GetQuestionByID(questionID)
+		if err != nil {
+			return err
+		}
+
+		imageURL, err := s.fileService.UpdateFile(imageFile, existingQuestion.ImageURL, string(QuestionType))
+		if err != nil {
+			return err
+		}
+		updates["image_url"] = imageURL
+	}
+
+	// อัปเดตข้อมูลคำถาม
 	return s.questionRepo.UpdateQuestionPartial(questionID, updates)
 }
 
@@ -119,21 +162,9 @@ func (s *QuestionService) DeleteQuestion(questionID uint, currentUserID uint) er
 
 	// ลบรูปภาพของคำถามถ้ามี
 	if question.ImageURL != "" {
-		filePath, fileType, err := s.fileService.GetFilePath(question.ImageURL)
-		if err == nil {
-			_ = s.fileService.DeleteFile(filePath, fileType)
-		}
+		_ = s.fileService.DeleteFileByURL(question.ImageURL)
 	}
 
-	// ลบรูปภาพของตัวเลือก
-	for _, choice := range question.Choices {
-		if choice.ImageURL != "" {
-			filePath, fileType, err := s.fileService.GetFilePath(choice.ImageURL)
-			if err == nil {
-				_ = s.fileService.DeleteFile(filePath, fileType)
-			}
-		}
-	}
-
+	// ลบข้อมูลคำถาม
 	return s.questionRepo.DeleteQuestion(questionID)
 }

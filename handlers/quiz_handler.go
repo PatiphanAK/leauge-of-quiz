@@ -9,7 +9,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
-	"github.com/patiphanak/league-of-quiz/dto"
 	models "github.com/patiphanak/league-of-quiz/model"
 	"github.com/patiphanak/league-of-quiz/services"
 	"github.com/patiphanak/league-of-quiz/utils"
@@ -55,7 +54,7 @@ func (h *QuizHandler) GetQuizzes(c *fiber.Ctx) error {
 	var count int64
 	var err error
 
-	// เรียกใช้ service แบบใหม่
+	// เรียกใช้ service
 	quizzes, count, err = h.quizService.GetFilteredQuizzes(offset, limit, isPublished, search, categories)
 
 	if err != nil {
@@ -84,7 +83,7 @@ func (h *QuizHandler) GetQuizByID(c *fiber.Ctx) error {
 		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	quiz, err := h.quizService.GetQuizByID(uint(quizID))
+	quiz, err := h.quizService.GetQuizByID(quizID)
 	if err != nil {
 		// เช็คว่า error มาจากการไม่พบ Quiz หรือ Database Error
 		if errors.Is(err, gorm.ErrRecordNotFound) { // ใช้กับ GORM
@@ -96,6 +95,7 @@ func (h *QuizHandler) GetQuizByID(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": quiz})
 }
 
+// CreateQuiz สร้าง quiz ใหม่ (รองรับ multipart form)
 func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
 	userID, statusCode, err := utils.GetAuthenticatedUserID(c)
@@ -103,42 +103,63 @@ func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// รับข้อมูลจาก request body
-	var request dto.CreateQuizRequest
-	if err := c.BodyParser(&request); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
-	log.Printf("request: %v", request)
-	// Validate required fields
-	if request.Title == "" {
+	// รับข้อมูลจาก multipart form
+	title := c.FormValue("title")
+	description := c.FormValue("description")
+	timeLimit, _ := strconv.Atoi(c.FormValue("timeLimit", "0"))
+	isPublished := c.FormValue("isPublished") == "true"
+	
+	// ตรวจสอบข้อมูลที่จำเป็น
+	if title == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Title is required",
 		})
 	}
 
-	if request.Description == "" {
+	if description == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Description is required",
 		})
 	}
 
+	// รับไฟล์รูปภาพ (ถ้ามี)
+	imageFile, err := c.FormFile("image")
+	
 	// สร้าง quiz object
 	quiz := &models.Quiz{
-		Title:       request.Title,
-		Description: request.Description,
-		TimeLimit:   request.TimeLimit,
-		IsPublished: request.IsPublished,
-		ImageURL:    request.ImageURL,
+		Title:       title,
+		Description: description,
+		TimeLimit:   uint(timeLimit),
+		IsPublished: isPublished,
 		CreatorID:   userID,
 	}
 
-	// สร้าง quiz พร้อมคำถามและตัวเลือก
-	if err := h.quizService.CreateQuiz(quiz); err != nil {
+	// สร้าง quiz พร้อมรูปภาพ
+	if err := h.quizService.CreateQuiz(quiz, imageFile); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
+	}
+
+	// รับข้อมูลหมวดหมู่ (ถ้ามี)
+	categoriesStr := c.FormValue("categories")
+	if categoriesStr != "" {
+		var categoryIDs []uint
+		categoryStrings := strings.Split(categoriesStr, ",")
+		for _, catStr := range categoryStrings {
+			catID, err := strconv.ParseUint(catStr, 10, 32)
+			if err == nil {
+				categoryIDs = append(categoryIDs, uint(catID))
+			}
+		}
+		
+		// อัปเดตหมวดหมู่
+		if len(categoryIDs) > 0 {
+			if err := h.quizService.UpdateQuizCategories(quiz.ID, categoryIDs, userID); err != nil {
+				// ถ้ามีข้อผิดพลาดในการอัปเดตหมวดหมู่ ก็ไม่ต้องยกเลิกการสร้าง quiz
+				log.Printf("Failed to update quiz categories: %v", err)
+			}
+		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -149,104 +170,119 @@ func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateQuiz อัปเดต quiz
+// UpdateQuiz อัปเดต quiz (รองรับ multipart form)
 func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
-    // ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
-	log.Println("Content-Type:", c.Get("Content-Type"))
-	log.Println("Raw Body:", string(c.Body()))
-	title := c.FormValue("Title")
-	title2 := c.FormValue("title")
-	log.Println(title)
-	log.Println(title2)
-    userID, statusCode, err := utils.GetAuthenticatedUserID(c)
-    if err != nil {
-        return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
-    }
-    
-    quizID, statusCode, err := utils.ParseIDParam(c, "id")
-    if err != nil {
-        if statusCode == fiber.StatusOK {
-            statusCode = fiber.StatusBadRequest
-        }
-        return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
-    }
+	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
+	userID, statusCode, err := utils.GetAuthenticatedUserID(c)
+	if err != nil {
+		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
+	}
+	
+	quizID, statusCode, err := utils.ParseIDParam(c, "id")
+	if err != nil {
+		if statusCode == fiber.StatusOK {
+			statusCode = fiber.StatusBadRequest
+		}
+		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
+	}
 
-    // ตรวจสอบว่าผู้ใช้เป็นเจ้าของ quiz หรือไม่
-    quiz, err := h.quizService.GetQuizByID(quizID)
-    if err != nil {
-        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Quiz not found"})
-    }
-    
-    if quiz.CreatorID != userID {
-        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You don't have permission to modify this quiz"})
-    }
-    
-    // รับข้อมูลจาก request body
-    var request dto.UpdateQuizRequest
-    if err := c.BodyParser(&request); err != nil {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
-    }
-    
-    // ตรวจสอบข้อมูลที่จำเป็น
-    if request.Title == "" {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title is required"})
-    }
-    if request.Description == "" {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Description is required"})
-    }
-    
-    // 1. อัปเดตข้อมูลพื้นฐานของ quiz
-    updates := map[string]interface{}{
-        "title": request.Title,
-        "description": request.Description,
-        "time_limit": request.TimeLimit,
-        "is_published": request.IsPublished,
-    }
-    
-    if err := h.quizService.PatchQuiz(quizID, updates, userID); err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-    }
-    
-    // 2. อัปเดตหมวดหมู่
-    if err := h.quizService.UpdateQuizCategories(quizID, request.Categories, userID); err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-    }
-    
-    // ดึงข้อมูล quiz ที่อัปเดตแล้วและส่งกลับ
-    updatedQuiz, err := h.quizService.GetQuizByID(quizID)
-    if err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-            "error": "Failed to retrieve updated quiz",
-        })
-    }
-    
-    return c.JSON(fiber.Map{
-        "message": "Quiz updated successfully",
-        "data": updatedQuiz,
-    })
+	// ตรวจสอบว่าผู้ใช้เป็นเจ้าของ quiz หรือไม่
+	quiz, err := h.quizService.GetQuizByID(quizID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Quiz not found"})
+	}
+	
+	if quiz.CreatorID != userID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You don't have permission to modify this quiz"})
+	}
+	
+	// รับข้อมูลจาก multipart form
+	title := c.FormValue("title", quiz.Title)
+	description := c.FormValue("description", quiz.Description)
+	timeLimitStr := c.FormValue("timeLimit")
+	isPublishedStr := c.FormValue("isPublished")
+	
+	// ตรวจสอบข้อมูลที่จำเป็น
+	if title == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title is required"})
+	}
+	if description == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Description is required"})
+	}
+	
+	// สร้าง map สำหรับการอัปเดต
+	updates := map[string]interface{}{
+		"title":       title,
+		"description": description,
+	}
+	
+	// เพิ่มข้อมูลเพิ่มเติมถ้ามีการส่งมา
+	if timeLimitStr != "" {
+		timeLimit, _ := strconv.Atoi(timeLimitStr)
+		updates["time_limit"] = timeLimit
+	}
+	
+	if isPublishedStr != "" {
+		isPublished := isPublishedStr == "true"
+		updates["is_published"] = isPublished
+	}
+	
+	// รับไฟล์รูปภาพ (ถ้ามี)
+	imageFile, _ := c.FormFile("image")
+	
+	// อัปเดตข้อมูล quiz
+	if err := h.quizService.PatchQuiz(quizID, updates, imageFile, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	
+	// อัปเดตหมวดหมู่ (ถ้ามี)
+	categoriesStr := c.FormValue("categories")
+	if categoriesStr != "" {
+		var categoryIDs []uint
+		categoryStrings := strings.Split(categoriesStr, ",")
+		for _, catStr := range categoryStrings {
+			catID, err := strconv.ParseUint(catStr, 10, 32)
+			if err == nil {
+				categoryIDs = append(categoryIDs, uint(catID))
+			}
+		}
+		
+		if err := h.quizService.UpdateQuizCategories(quizID, categoryIDs, userID); err != nil {
+			// ถ้ามีข้อผิดพลาดในการอัปเดตหมวดหมู่ ก็ไม่ต้องยกเลิกการอัปเดต quiz
+			log.Printf("Failed to update quiz categories: %v", err)
+		}
+	}
+	
+	// ดึงข้อมูล quiz ที่อัปเดตแล้วและส่งกลับ
+	updatedQuiz, err := h.quizService.GetQuizByID(quizID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve updated quiz",
+		})
+	}
+	
+	return c.JSON(fiber.Map{
+		"message": "Quiz updated successfully",
+		"data": updatedQuiz,
+	})
 }
-
 
 // DeleteQuiz ลบ quiz
 func (h *QuizHandler) DeleteQuiz(c *fiber.Ctx) error {
 	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
-	userID, ok := c.Locals("userID").(uint)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "You must be logged in to delete a quiz",
-		})
+	userID, statusCode, err := utils.GetAuthenticatedUserID(c)
+	if err != nil {
+		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	// รับ ID จาก parameter
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	quizID, statusCode, err := utils.ParseIDParam(c, "id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid quiz ID",
-		})
+		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	// ลบ quiz
-	if err := h.quizService.DeleteQuiz(uint(id), userID); err != nil {
+	if err := h.quizService.DeleteQuiz(quizID, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -260,11 +296,9 @@ func (h *QuizHandler) DeleteQuiz(c *fiber.Ctx) error {
 // GetMyQuizzes ดึงข้อมูล quizzes ที่สร้างโดยผู้ใช้ปัจจุบัน
 func (h *QuizHandler) GetMyQuizzes(c *fiber.Ctx) error {
 	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
-	userID, ok := c.Locals("userID").(uint)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "You must be logged in to view your quizzes",
-		})
+	userID, statusCode, err := utils.GetAuthenticatedUserID(c)
+	if err != nil {
+		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	// รับ pagination parameters
@@ -288,6 +322,7 @@ func (h *QuizHandler) GetMyQuizzes(c *fiber.Ctx) error {
 	})
 }
 
+// GetCategories ดึงข้อมูลหมวดหมู่ทั้งหมด
 func (h *QuizHandler) GetCategories(c *fiber.Ctx) error {
 	// ดึงข้อมูลหมวดหมู่ทั้งหมดจากฐานข้อมูล
 	categories, err := h.quizService.GetAllCategories()
@@ -301,4 +336,3 @@ func (h *QuizHandler) GetCategories(c *fiber.Ctx) error {
 		"categories": categories,
 	})
 }
-

@@ -25,8 +25,10 @@ type FileService struct {
 	baseDir      string
 	allowedTypes []string
 	maxFileSize  int64
+	serverURL    string // เพิ่ม URL ของเซิร์ฟเวอร์
 }
 
+// NewFileService สร้าง instance ใหม่ของ FileService
 func NewFileService(baseDir string) *FileService {
 	return &FileService{
 		baseDir: baseDir,
@@ -37,11 +39,12 @@ func NewFileService(baseDir string) *FileService {
 			"image/webp",
 		},
 		maxFileSize: 5 * 1024 * 1024, // 5MB
+		serverURL:   "localhost:3000", // เก็บ URL ของเซิร์ฟเวอร์
 	}
 }
 
-// isAllowedFileType ตรวจสอบประเภทไฟล์
-func (s *FileService) isAllowedFileType(contentType string) bool {
+// IsAllowedFileType ตรวจสอบประเภทไฟล์
+func (s *FileService) IsAllowedFileType(contentType string) bool {
 	for _, allowed := range s.allowedTypes {
 		if contentType == allowed {
 			return true
@@ -52,7 +55,14 @@ func (s *FileService) isAllowedFileType(contentType string) bool {
 
 // UploadFile อัปโหลดไฟล์และคืนค่า URL
 func (s *FileService) UploadFile(file *multipart.FileHeader, fileType string) (string, error) {
-	// Existing code remains the same for file validation and saving
+	if file == nil {
+		return "", nil
+	}
+
+	// ตรวจสอบว่า fileType ถูกต้อง
+	if fileType != string(QuizType) && fileType != string(QuestionType) && fileType != string(ChoiceType) {
+		return "", errors.New("invalid file type category")
+	}
 
 	// ตรวจสอบขนาดไฟล์
 	if file.Size > s.maxFileSize {
@@ -61,7 +71,7 @@ func (s *FileService) UploadFile(file *multipart.FileHeader, fileType string) (s
 
 	// ตรวจสอบประเภทไฟล์
 	contentType := file.Header.Get("Content-Type")
-	if !s.isAllowedFileType(contentType) {
+	if !s.IsAllowedFileType(contentType) {
 		return "", errors.New("file type not allowed")
 	}
 
@@ -104,13 +114,13 @@ func (s *FileService) UploadFile(file *multipart.FileHeader, fileType string) (s
 		}
 	}
 
-	// Updated URL format to match what's expected, with localhost:3000 prefix
-	fileURL := fmt.Sprintf("localhost:3000/storage/%s/%s", fileType, filename)
+	// สร้าง URL ในรูปแบบที่ถูกต้อง
+	fileURL := fmt.Sprintf("%s/storage/%s/%s", s.serverURL, fileType, filename)
 
 	return fileURL, nil
 }
 
-// DeleteFile ลบไฟล์
+// DeleteFile ลบไฟล์จากชื่อไฟล์และประเภท
 func (s *FileService) DeleteFile(filename string, fileType string) error {
 	if filename == "" {
 		return nil
@@ -132,17 +142,32 @@ func (s *FileService) DeleteFile(filename string, fileType string) error {
 	return nil
 }
 
+// DeleteFileByURL ลบไฟล์จาก URL
+func (s *FileService) DeleteFileByURL(fileURL string) error {
+	if fileURL == "" {
+		return nil
+	}
+	
+	// แยกส่วนของ URL
+	filename, fileType, err := s.ExtractInfoFromURL(fileURL)
+	if err != nil {
+		return err
+	}
+	
+	return s.DeleteFile(filename, fileType)
+}
+
 // GetFilePath คืนค่าเส้นทางไฟล์จาก URL
 func (s *FileService) GetFilePath(fileURL string) (string, string, error) {
-	// Remove localhost:3000 prefix if present
-	fileURL = strings.TrimPrefix(fileURL, "localhost:3000")
+	// แปลงรูปแบบ URL ให้ถูกต้อง
+	fileURL = strings.TrimPrefix(fileURL, s.serverURL)
 
 	// ตรวจสอบว่า URL มีรูปแบบที่ถูกต้องหรือไม่
 	if !strings.HasPrefix(fileURL, "/storage/") {
 		return "", "", errors.New("invalid file URL format")
 	}
 
-	// แยกส่วนของ URL (updated to match the new URL format)
+	// แยกส่วนของ URL
 	parts := strings.Split(strings.TrimPrefix(fileURL, "/storage/"), "/")
 	if len(parts) != 2 {
 		return "", "", errors.New("invalid file URL format")
@@ -157,21 +182,39 @@ func (s *FileService) GetFilePath(fileURL string) (string, string, error) {
 	return filePath, fileType, nil
 }
 
+// ExtractInfoFromURL แยกข้อมูลจาก URL
+func (s *FileService) ExtractInfoFromURL(fileURL string) (filename string, fileType string, err error) {
+	if fileURL == "" {
+		return "", "", errors.New("empty URL")
+	}
+
+	// แปลงรูปแบบ URL ให้ถูกต้อง
+	fileURL = strings.TrimPrefix(fileURL, s.serverURL)
+
+	// ตรวจสอบว่า URL มีรูปแบบที่ถูกต้องหรือไม่
+	if !strings.HasPrefix(fileURL, "/storage/") {
+		return "", "", errors.New("invalid file URL format")
+	}
+
+	// แยกส่วนของ URL
+	parts := strings.Split(strings.TrimPrefix(fileURL, "/storage/"), "/")
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid file URL format")
+	}
+
+	return parts[1], parts[0], nil
+}
+
 // UpdateFile อัปเดตไฟล์โดยลบไฟล์เก่าและอัปโหลดไฟล์ใหม่
 func (s *FileService) UpdateFile(file *multipart.FileHeader, oldFileURL string, fileType string) (string, error) {
+	// ถ้าไม่มีไฟล์ใหม่และไม่มี URL เก่า
+	if file == nil {
+		return oldFileURL, nil
+	}
+
 	// ถ้ามีไฟล์เก่า ให้ลบออก
 	if oldFileURL != "" {
-		// Remove localhost:3000 prefix if present
-		oldFileURL = strings.TrimPrefix(oldFileURL, "localhost:3000")
-
-		// แยกชื่อไฟล์จาก URL (updated to match the new URL format)
-		oldFilename := strings.TrimPrefix(oldFileURL, fmt.Sprintf("/storage/%s/", fileType))
-		if oldFilename != "" {
-			if err := s.DeleteFile(oldFilename, fileType); err != nil {
-				// ไม่ต้องคืนค่าข้อผิดพลาด เพราะเราต้องการอัปโหลดไฟล์ใหม่ต่อไป
-				fmt.Printf("Warning: Failed to delete old file: %v\n", err)
-			}
-		}
+		_ = s.DeleteFileByURL(oldFileURL)
 	}
 
 	// อัปโหลดไฟล์ใหม่
