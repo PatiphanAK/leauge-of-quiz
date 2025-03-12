@@ -198,6 +198,7 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 	
 	// รับข้อมูลจาก multipart form
 	title := c.FormValue("title", quiz.Title)
+	log.Printf("title: %v", title)
 	description := c.FormValue("description", quiz.Description)
 	timeLimitStr := c.FormValue("timeLimit")
 	isPublishedStr := c.FormValue("isPublished")
@@ -228,7 +229,7 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 	}
 	
 	// รับไฟล์รูปภาพ (ถ้ามี)
-	imageFile, _ := c.FormFile("image")
+	imageFile, _ := c.FormFile("imageURL")
 	
 	// อัปเดตข้อมูล quiz
 	if err := h.quizService.PatchQuiz(quizID, updates, imageFile, userID); err != nil {

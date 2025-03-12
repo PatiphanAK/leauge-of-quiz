@@ -19,5 +19,4 @@ func SetupQuizRoute(app *fiber.App, quizHandler *handlers.QuizHandler, authMiddl
 	quizRoutes.Post("/", quizHandler.CreateQuiz)
 	quizRoutes.Patch("/:id", quizHandler.UpdateQuiz)
 	quizRoutes.Delete("/:id", quizHandler.DeleteQuiz)
-	
 }
