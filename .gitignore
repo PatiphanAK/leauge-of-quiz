@@ -1,4 +1,4 @@
 .env
 .idea/
-.storage/
+storage/
 .DS_Store
