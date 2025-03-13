@@ -8,15 +8,15 @@ import (
 	middleware "github.com/patiphanak/league-of-quiz/middlewares"
 )
 
-// SetupRoutes ตั้งค่าเส้นทางทั้งหมด
-func SetupRoutes(app *fiber.App, authHandler *handlers.AuthHandler, authMiddleware *middleware.AuthMiddleware, quizHandler *handlers.QuizHandler, uploadHandler *handlers.UploadHandler) {
+func SetupRoutes(app *fiber.App, handlers *handlers.AllHandlers, authMiddleware *middleware.AuthMiddleware) {
 	// Middleware
-	app.Use(logger.New())  // สำหรับ log การร้องขอ
-	app.Use(recover.New()) // สำหรับ recover จากการ panics
+	app.Use(logger.New())
+	app.Use(recover.New())
 	app.Use(middleware.TransformResponse())
 
 	// routes
-	SetupAuthRoute(app, authHandler, authMiddleware)
-	SetupUploadRoutes(app, uploadHandler, authMiddleware)
-	SetupQuizRoute(app, quizHandler, authMiddleware)
+	SetupAuthRoute(app, handlers.Auth, authMiddleware)
+	SetupUploadRoutes(app, handlers.Upload, authMiddleware)
+	SetupQuizRoute(app, handlers.Quiz, authMiddleware)
+	SetupQuestionRoute(app, handlers.Question, authMiddleware)
 }

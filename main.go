@@ -51,10 +51,6 @@ func main() {
 	googleAuth := oauth.NewGoogleOAuth(cfg)
 	jwtService := jwt.NewJWTService(cfg)
 
-	// Set up handlers
-	authHandler := handlers.NewAuthHandler(database.DB, googleAuth, jwtService)
-	quizHandler := handlers.NewQuizHandler(services.Quiz, services.File)
-	uploadHandler := handlers.NewUploadHandler(services.File)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -76,12 +72,9 @@ func main() {
 	authMiddleware := middleware.NewAuthMiddleware(database.DB, jwtService)
 
 	// Set up routes
-	routes.SetupRoutes(app, authHandler, authMiddleware, quizHandler, uploadHandler)
-	// You may want to add your quiz routes here
-	// Example: routes.SetupQuizRoutes(app, quizHandler, authMiddleware)
+	allHandlers := handlers.InitHandlers(services, database.DB, jwtService, googleAuth)
+	routes.SetupRoutes(app, allHandlers, authMiddleware)
 
-	// Set up static file server for uploaded files
-	// This should point to the same base directory used by FileService
 	app.Static("/storage", storageBasePath)
 
 	// Set up graceful shutdown
