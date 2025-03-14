@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -71,12 +72,12 @@ func (h *QuestionHandler) CreateQuestion(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
-
 	// รับข้อมูลจาก multipart form
 	quizIDStr := c.FormValue("quizId")
 	text := c.FormValue("text")
 
 	// ตรวจสอบข้อมูลที่จำเป็น
+	log.Print("quizIDStr: ", quizIDStr)
 	if quizIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Quiz ID is required"})
 	}
