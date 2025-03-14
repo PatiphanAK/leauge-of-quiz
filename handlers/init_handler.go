@@ -27,7 +27,7 @@ func InitHandlers(
 		Auth:     NewAuthHandler(db, googleOAuth, jwtService),
 		Quiz:     NewQuizHandler(services.Quiz, services.File),
 		Upload:   NewUploadHandler(services.File),
-		Question: NewQuestionHandler(services.Question, services.File),
+		Question: NewQuestionHandler(services.Question, services.File, services.Choice),
 		Choice:   NewChoiceHandler(services.Choice, services.File),
 	}
 }

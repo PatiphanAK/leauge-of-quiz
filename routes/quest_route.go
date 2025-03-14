@@ -17,8 +17,9 @@ func SetupQuestionRoute(app *fiber.App, questionHandler *handlers.QuestionHandle
 	// Routes that require auth
 	questionsWithAuth := quizzes.Group("/:quizId/questions")
 	questionsWithAuth.Use(authMiddleware.RequireAuth())
+	
 	questionsWithAuth.Post("/", questionHandler.CreateQuestion)
-	questionsWithAuth.Put("/:id", questionHandler.UpdateQuestion)
 	questionsWithAuth.Patch("/:id", questionHandler.PatchQuestion)
+	questionsWithAuth.Put("/:id", questionHandler.UpdateQuestion)
 	questionsWithAuth.Delete("/:id", questionHandler.DeleteQuestion)
 }

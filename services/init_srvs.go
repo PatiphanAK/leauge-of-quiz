@@ -55,7 +55,7 @@ func InitServices(repos *repositories.Repositories, storagePath string) (*Servic
 	log.Println("FileService initialized with storage at:", storagePath)
 
 	// Initialize question and choice services
-	questionService := NewQuestionService(repos.Question, repos.Quiz, fileService)
+	questionService := NewQuestionService(repos.Question, repos.Quiz, fileService, repos.Choice)
 	choiceService := NewChoiceService(repos.Choice, repos.Question, repos.Quiz, fileService)
 
 	quizService := NewQuizService(repos.Quiz, fileService)

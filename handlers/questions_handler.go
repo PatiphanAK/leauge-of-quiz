@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"mime/multipart"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
+	"github.com/patiphanak/league-of-quiz/dto"
 	models "github.com/patiphanak/league-of-quiz/model"
 	"github.com/patiphanak/league-of-quiz/services"
 	"github.com/patiphanak/league-of-quiz/utils"
@@ -17,13 +21,19 @@ import (
 type QuestionHandler struct {
 	questionService *services.QuestionService
 	fileService     *services.FileService
+	choiceService   *services.ChoiceService
 }
 
 // NewQuestionHandler สร้าง instance ใหม่ของ QuestionHandler
-func NewQuestionHandler(questionService *services.QuestionService, fileService *services.FileService) *QuestionHandler {
+func NewQuestionHandler(
+	questionService *services.QuestionService, 
+	fileService *services.FileService,
+	choiceService *services.ChoiceService,
+	) *QuestionHandler {
 	return &QuestionHandler{
 		questionService: questionService,
 		fileService:     fileService,
+		choiceService:  choiceService,
 	}
 }
 
@@ -105,6 +115,9 @@ func (h *QuestionHandler) CreateQuestion(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	choices := c.FormValue("choices")
+	log.Print("choices: ", choices)
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Question created successfully",
 		"data": fiber.Map{
@@ -167,7 +180,6 @@ func (h *QuestionHandler) UpdateQuestion(c *fiber.Ctx) error {
 	})
 }
 
-// PatchQuestion อัปเดตข้อมูลคำถามบางส่วน
 func (h *QuestionHandler) PatchQuestion(c *fiber.Ctx) error {
 	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
 	userID, statusCode, err := utils.GetAuthenticatedUserID(c)
@@ -181,25 +193,56 @@ func (h *QuestionHandler) PatchQuestion(c *fiber.Ctx) error {
 		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// รับข้อมูลจาก multipart form
-	text := c.FormValue("text")
-
-	// สร้าง map สำหรับการอัปเดต
-	updates := map[string]interface{}{}
-	if text != "" {
-		updates["text"] = text
+	// รับข้อมูล JSON จาก form
+	questionDataStr := c.FormValue("questionData")
+	if questionDataStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Question data is required"})
 	}
 
-	// รับไฟล์รูปภาพ (ถ้ามี)
-	imageFile, _ := c.FormFile("image")
+	// แปลง JSON เป็น struct
+	var formData dto.QuestionFormData
+	if err := json.Unmarshal([]byte(questionDataStr), &formData); err != nil {
+		log.Printf("Error parsing question data: %v", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid question data format"})
+	}
 
-	// อัปเดตข้อมูลคำถาม
-	if err := h.questionService.PatchQuestion(questionID, updates, imageFile, userID); err != nil {
+	// ตรวจสอบข้อมูลที่จำเป็น
+	if formData.Text == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Question text is required"})
+	}
+
+	// รับไฟล์รูปภาพคำถาม (ถ้ามี)
+	questionImage, _ := c.FormFile("image")
+
+	// รับไฟล์รูปภาพตัวเลือก
+	choiceImages := make(map[int]*multipart.FileHeader)
+	for i := range formData.Choices {
+		choiceImage, _ := c.FormFile(fmt.Sprintf("choices[%d][image]", i))
+		if choiceImage != nil {
+			choiceImages[i] = choiceImage
+		}
+	}
+
+	// เรียกใช้ service เพื่ออัปเดตคำถามและตัวเลือกทั้งหมดในครั้งเดียว
+	err = h.questionService.UpdateQuestionWithChoices(
+		questionID,
+		formData.Text,
+		formData.Choices,
+		questionImage,
+		choiceImages,
+		userID,
+	)
+
+	if err != nil {
+		log.Printf("Error updating question with choices: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
 		"message": "Question updated successfully",
+		"data": fiber.Map{
+			"id": questionID,
+		},
 	})
 }
 
