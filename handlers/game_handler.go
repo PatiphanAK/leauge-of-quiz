@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	models "github.com/patiphanak/league-of-quiz/model"
 	"github.com/patiphanak/league-of-quiz/services"
 )
 
@@ -61,7 +60,7 @@ func (h *GameHandler) GetGameSessions(c *fiber.Ctx) error {
 	// ดึงเฉพาะเกมที่ผู้ใช้เป็นโฮสต์หรือไม่
 	hostOnly := c.QueryBool("hostOnly", false)
 
-	var sessions []models.GameSession
+	var sessions interface{}
 	var err error
 
 	if hostOnly {

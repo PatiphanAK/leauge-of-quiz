@@ -9,13 +9,12 @@ import (
 	"github.com/patiphanak/league-of-quiz/repositories"
 )
 
-// GameService คือส่วนที่จัดการ business logic ของเกม
+// GameService จัดการ business logic ของเกม
 type GameService struct {
 	gameSessionRepo  *repositories.GameSessionRepository
 	gamePlayerRepo   *repositories.GamePlayerRepository
 	playerAnswerRepo *repositories.PlayerAnswerRepository
 	choiceRepo       *repositories.ChoiceRepository
-	// เพิ่ม repository อื่นๆ ตามความจำเป็น
 }
 
 // NewGameService สร้าง GameService ใหม่
@@ -36,7 +35,7 @@ func NewGameService(
 // CreateGameSession สร้าง session เกมใหม่
 func (s *GameService) CreateGameSession(hostID uint, quizID uint) (*models.GameSession, error) {
 	// สร้าง ID สำหรับ session
-	sessionID := uuid.New()
+	sessionID := uuid.New().String()
 
 	// สร้าง GameSession
 	now := time.Now()
@@ -56,7 +55,7 @@ func (s *GameService) CreateGameSession(hostID uint, quizID uint) (*models.GameS
 
 	// ลงทะเบียนโฮสต์เป็นผู้เล่นด้วย
 	hostPlayer := &models.GamePlayer{
-		SessionID: sessionID.String(),
+		SessionID: sessionID,
 		UserID:    hostID,
 		Nickname:  "Host", // ตั้งชื่อเริ่มต้น สามารถเปลี่ยนได้ภายหลัง
 		Score:     0,
@@ -66,7 +65,7 @@ func (s *GameService) CreateGameSession(hostID uint, quizID uint) (*models.GameS
 	err = s.gamePlayerRepo.CreateGamePlayer(hostPlayer)
 	if err != nil {
 		// ถ้าสร้างผู้เล่นไม่สำเร็จ ให้ลบ session
-		s.gameSessionRepo.DeleteGameSession(sessionID.String())
+		s.gameSessionRepo.DeleteGameSession(sessionID)
 		return nil, err
 	}
 
@@ -151,7 +150,10 @@ func (s *GameService) SubmitAnswer(sessionID string, playerID uint, questionID u
 	}
 
 	// ตรวจสอบว่าผู้เล่นได้ตอบคำถามนี้ไปแล้วหรือไม่
-	// ต้องสร้าง repository method ใหม่หรือปรับปรุงจากที่มีอยู่
+	existingAnswer, err := s.playerAnswerRepo.GetPlayerAnswerBySessionAndQuestion(sessionID, questionID, playerID)
+	if err == nil && existingAnswer != nil {
+		return nil, errors.New("ผู้เล่นได้ตอบคำถามนี้ไปแล้ว")
+	}
 
 	// ตรวจสอบว่าตัวเลือกนี้เป็นคำตอบที่ถูกต้องหรือไม่
 	choice, err := s.choiceRepo.GetChoiceByID(choiceID)

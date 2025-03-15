@@ -18,6 +18,7 @@ import (
 	"github.com/patiphanak/league-of-quiz/repositories"
 	routes "github.com/patiphanak/league-of-quiz/routes"
 	"github.com/patiphanak/league-of-quiz/services"
+	"github.com/patiphanak/league-of-quiz/websocket"
 )
 
 func main() {
@@ -47,10 +48,23 @@ func main() {
 	}
 	defer services.ShutdownServices()
 
+	// สร้าง WebSocket manager
+	wsManager, err := websocket.NewManager(services.GameService)
+	if err != nil {
+		log.Fatalf("Error creating WebSocket manager: %v", err)
+	}
+
+	// เริ่ม WebSocket server
+	go func() {
+		if err := wsManager.Server().Serve(); err != nil {
+			log.Fatalf("Socket.IO server error: %v", err)
+		}
+	}()
+	defer wsManager.Server().Close()
+
 	// Initialize auth components
 	googleAuth := oauth.NewGoogleOAuth(cfg)
 	jwtService := jwt.NewJWTService(cfg)
-
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -73,7 +87,7 @@ func main() {
 
 	// Set up routes
 	allHandlers := handlers.InitHandlers(services, database.DB, jwtService, googleAuth)
-	routes.SetupRoutes(app, allHandlers, authMiddleware)
+	routes.SetupRoutes(app, allHandlers, authMiddleware, wsManager)
 
 	app.Static("/storage", storageBasePath)
 

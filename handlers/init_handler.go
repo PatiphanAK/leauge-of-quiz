@@ -14,6 +14,7 @@ type AllHandlers struct {
 	Upload   *UploadHandler
 	Question *QuestionHandler
 	Choice   *ChoiceHandler
+	Game     *GameHandler
 }
 
 // InitHandlers สร้าง instance ทั้งหมดของ handlers
@@ -29,5 +30,6 @@ func InitHandlers(
 		Upload:   NewUploadHandler(services.File),
 		Question: NewQuestionHandler(services.Question, services.File, services.Choice),
 		Choice:   NewChoiceHandler(services.Choice, services.File),
+		Game:     NewGameHandler(services.GameService),
 	}
 }

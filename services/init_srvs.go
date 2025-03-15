@@ -31,10 +31,11 @@ func DefaultFileOptions(baseDir string) FileServiceOptions {
 
 // Services holds all service instances
 type Services struct {
-	Quiz     *QuizService
-	File     *FileService
-	Choice   *ChoiceService
-	Question *QuestionService
+	Quiz        *QuizService
+	File        *FileService
+	Choice      *ChoiceService
+	Question    *QuestionService
+	GameService *GameService
 }
 
 // InitServices initializes all services with proper error handling
@@ -57,15 +58,16 @@ func InitServices(repos *repositories.Repositories, storagePath string) (*Servic
 	// Initialize question and choice services
 	questionService := NewQuestionService(repos.Question, repos.Quiz, fileService, repos.Choice)
 	choiceService := NewChoiceService(repos.Choice, repos.Question, repos.Quiz, fileService)
-
 	quizService := NewQuizService(repos.Quiz, fileService)
+	gameService := NewGameService(repos.GameSession, repos.GamePlayer, repos.PlayerAnswer, repos.Choice)
 
 	// Create the services container
 	services := &Services{
-		Quiz:     quizService,
-		File:     fileService,
-		Question: questionService,
-		Choice:   choiceService,
+		Quiz:        quizService,
+		File:        fileService,
+		Question:    questionService,
+		Choice:      choiceService,
+		GameService: gameService,
 	}
 
 	log.Println("All services initialized successfully")

@@ -6,9 +6,10 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/patiphanak/league-of-quiz/handlers"
 	middleware "github.com/patiphanak/league-of-quiz/middlewares"
+	"github.com/patiphanak/league-of-quiz/websocket"
 )
 
-func SetupRoutes(app *fiber.App, handlers *handlers.AllHandlers, authMiddleware *middleware.AuthMiddleware) {
+func SetupRoutes(app *fiber.App, handlers *handlers.AllHandlers, authMiddleware *middleware.AuthMiddleware, wsManager *websocket.Manager) {
 	// Middleware
 	app.Use(logger.New())
 	app.Use(recover.New())
@@ -19,4 +20,6 @@ func SetupRoutes(app *fiber.App, handlers *handlers.AllHandlers, authMiddleware 
 	SetupUploadRoutes(app, handlers.Upload, authMiddleware)
 	SetupQuizRoute(app, handlers.Quiz, authMiddleware)
 	SetupQuestionRoute(app, handlers.Question, authMiddleware)
+
+	SetupWebSocketRoute(app, wsManager)
 }

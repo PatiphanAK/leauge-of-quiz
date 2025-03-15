@@ -2,17 +2,15 @@ package models
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type GameSession struct {
-	ID         uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	QuizID     uint      `gorm:"not null;index"`
-	Quiz       Quiz      `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	HostID     uint      `gorm:"not null;index"`
-	Host       User      `gorm:"foreignKey:HostID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Status     string    `gorm:"not null"`
+	ID         string `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	QuizID     uint   `gorm:"not null;index"`
+	Quiz       Quiz   `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	HostID     uint   `gorm:"not null;index"`
+	Host       User   `gorm:"foreignKey:HostID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Status     string `gorm:"not null"`
 	StartedAt  *time.Time
 	FinishedAt *time.Time
 	CreatedAt  time.Time
