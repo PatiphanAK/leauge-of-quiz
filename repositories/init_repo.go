@@ -7,6 +7,7 @@ import (
 )
 
 type Repositories struct {
+	DB           *gorm.DB
 	Quiz         *QuizRepository
 	Question     *QuestionRepository
 	Choice       *ChoiceRepository
@@ -26,4 +27,8 @@ func InitRepositories(db *gorm.DB) *Repositories {
 		GamePlayer:   NewGamePlayerRepository(db),
 		PlayerAnswer: NewPlayerAnswerRepository(db),
 	}
+}
+
+func (r *Repositories) BeginTx() *gorm.DB {
+	return r.DB.Begin()
 }

@@ -59,7 +59,7 @@ func InitServices(repos *repositories.Repositories, storagePath string) (*Servic
 	questionService := NewQuestionService(repos.Question, repos.Quiz, fileService, repos.Choice)
 	choiceService := NewChoiceService(repos.Choice, repos.Question, repos.Quiz, fileService)
 	quizService := NewQuizService(repos.Quiz, fileService)
-	gameService := NewGameService(repos.GameSession, repos.GamePlayer, repos.PlayerAnswer, repos.Choice)
+	gameService := NewGameService(repos, repos.GameSession, repos.GamePlayer, repos.PlayerAnswer, repos.Choice)
 
 	// Create the services container
 	services := &Services{

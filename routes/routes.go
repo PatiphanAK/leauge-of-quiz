@@ -20,6 +20,6 @@ func SetupRoutes(app *fiber.App, handlers *handlers.AllHandlers, authMiddleware 
 	SetupUploadRoutes(app, handlers.Upload, authMiddleware)
 	SetupQuizRoute(app, handlers.Quiz, authMiddleware)
 	SetupQuestionRoute(app, handlers.Question, authMiddleware)
-
+	SetupGameRoute(app, handlers.Game, authMiddleware)
 	SetupWebSocketRoute(app, wsManager)
 }

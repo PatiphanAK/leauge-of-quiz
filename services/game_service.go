@@ -11,6 +11,7 @@ import (
 
 // GameService จัดการ business logic ของเกม
 type GameService struct {
+	repos            *repositories.Repositories // เปลี่ยนเป็นเก็บ repositories ทั้งหมด
 	gameSessionRepo  *repositories.GameSessionRepository
 	gamePlayerRepo   *repositories.GamePlayerRepository
 	playerAnswerRepo *repositories.PlayerAnswerRepository
@@ -19,12 +20,14 @@ type GameService struct {
 
 // NewGameService สร้าง GameService ใหม่
 func NewGameService(
+	repos *repositories.Repositories,
 	gameSessionRepo *repositories.GameSessionRepository,
 	gamePlayerRepo *repositories.GamePlayerRepository,
 	playerAnswerRepo *repositories.PlayerAnswerRepository,
 	choiceRepo *repositories.ChoiceRepository,
 ) *GameService {
 	return &GameService{
+		repos:            repos,
 		gameSessionRepo:  gameSessionRepo,
 		gamePlayerRepo:   gamePlayerRepo,
 		playerAnswerRepo: playerAnswerRepo,
@@ -32,7 +35,7 @@ func NewGameService(
 	}
 }
 
-// CreateGameSession สร้าง session เกมใหม่
+// CreateGameSession สร้าง session เกมใหม่ ด้วย transaction
 func (s *GameService) CreateGameSession(hostID uint, quizID uint) (*models.GameSession, error) {
 	// สร้าง ID สำหรับ session
 	sessionID := uuid.New().String()
@@ -47,12 +50,6 @@ func (s *GameService) CreateGameSession(hostID uint, quizID uint) (*models.GameS
 		CreatedAt: now,
 	}
 
-	// บันทึกลงฐานข้อมูล
-	err := s.gameSessionRepo.CreateGameSession(session)
-	if err != nil {
-		return nil, err
-	}
-
 	// ลงทะเบียนโฮสต์เป็นผู้เล่นด้วย
 	hostPlayer := &models.GamePlayer{
 		SessionID: sessionID,
@@ -62,82 +59,32 @@ func (s *GameService) CreateGameSession(hostID uint, quizID uint) (*models.GameS
 		JoinedAt:  now,
 	}
 
-	err = s.gamePlayerRepo.CreateGamePlayer(hostPlayer)
-	if err != nil {
-		// ถ้าสร้างผู้เล่นไม่สำเร็จ ให้ลบ session
-		s.gameSessionRepo.DeleteGameSession(sessionID)
+	// เริ่ม transaction
+	tx := s.repos.BeginTx()
+
+	// บันทึก session ในฐานข้อมูลใน transaction
+	if err := tx.Create(session).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// บันทึกผู้เล่นโฮสต์ในฐานข้อมูลใน transaction
+	if err := tx.Create(hostPlayer).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// หากทุกอย่างเรียบร้อย commit transaction
+	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
 	return session, nil
 }
 
-// GetGameSession ดึงข้อมูล game session จาก ID
-func (s *GameService) GetGameSession(sessionID string) (*models.GameSession, error) {
-	return s.gameSessionRepo.GetGameSessionByID(sessionID)
-}
+// 3. ควรปรับปรุงฟังก์ชันอื่นๆ ที่ต้องการความเป็นอะตอมมิก เช่น SubmitAnswer
 
-// JoinGameSession ให้ผู้เล่นเข้าร่วม session
-func (s *GameService) JoinGameSession(sessionID string, userID uint, nickname string) (*models.GamePlayer, error) {
-	// ตรวจสอบว่า session มีอยู่จริงและยังอยู่ในสถานะ lobby
-	session, err := s.gameSessionRepo.GetGameSessionByID(sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	if session.Status != "lobby" {
-		return nil, errors.New("ไม่สามารถเข้าร่วมได้: เกมได้เริ่มต้นหรือจบไปแล้ว")
-	}
-
-	// ตรวจสอบว่าผู้เล่นอยู่ใน session นี้แล้วหรือไม่
-	existingPlayer, err := s.gamePlayerRepo.GetPlayerBySessionAndUserID(sessionID, userID)
-	if err == nil && existingPlayer != nil {
-		// ผู้เล่นอยู่ใน session นี้แล้ว
-		return existingPlayer, nil
-	}
-
-	// สร้างผู้เล่นใหม่
-	player := &models.GamePlayer{
-		SessionID: sessionID,
-		UserID:    userID,
-		Nickname:  nickname,
-		Score:     0,
-		JoinedAt:  time.Now(),
-	}
-
-	err = s.gamePlayerRepo.CreateGamePlayer(player)
-	if err != nil {
-		return nil, err
-	}
-
-	return player, nil
-}
-
-// StartGameSession เริ่มเกม
-func (s *GameService) StartGameSession(sessionID string, hostID uint) error {
-	// ตรวจสอบว่าผู้ร้องขอคือโฮสต์
-	session, err := s.gameSessionRepo.GetGameSessionByID(sessionID)
-	if err != nil {
-		return err
-	}
-
-	if session.HostID != hostID {
-		return errors.New("เฉพาะโฮสต์เท่านั้นที่สามารถเริ่มเกมได้")
-	}
-
-	if session.Status != "lobby" {
-		return errors.New("เกมได้เริ่มต้นหรือจบไปแล้ว")
-	}
-
-	// อัพเดทสถานะเป็น "in_progress"
-	startTime := time.Now()
-	session.Status = "in_progress"
-	session.StartedAt = &startTime
-
-	return s.gameSessionRepo.UpdateGameSession(session)
-}
-
-// SubmitAnswer บันทึกคำตอบของผู้เล่น
+// SubmitAnswer บันทึกคำตอบของผู้เล่น ใช้ transaction
 func (s *GameService) SubmitAnswer(sessionID string, playerID uint, questionID uint, choiceID uint, timeSpent float64) (*models.PlayerAnswer, error) {
 	// ตรวจสอบว่า session อยู่ในสถานะ in_progress
 	session, err := s.gameSessionRepo.GetGameSessionByID(sessionID)
@@ -166,12 +113,10 @@ func (s *GameService) SubmitAnswer(sessionID string, playerID uint, questionID u
 		return nil, errors.New("ตัวเลือกนี้ไม่ได้อยู่ในคำถามที่ระบุ")
 	}
 
-	// คำนวณคะแนน - ตัวอย่างง่ายๆ
+	// คำนวณคะแนน
 	isCorrect := choice.IsCorrect
 	var points uint = 0
 	if isCorrect {
-		// คำนวณคะแนนตามเวลาที่ใช้ - ยิ่งเร็วยิ่งได้คะแนนมาก
-		// นี่เป็นเพียงตัวอย่าง คุณอาจจะมีการคำนวณที่ซับซ้อนกว่านี้
 		if timeSpent <= 5 {
 			points = 100
 		} else if timeSpent <= 10 {
@@ -196,27 +141,119 @@ func (s *GameService) SubmitAnswer(sessionID string, playerID uint, questionID u
 		CreatedAt:  time.Now(),
 	}
 
-	err = s.playerAnswerRepo.CreatePlayerAnswer(answer)
-	if err != nil {
+	// เริ่ม transaction
+	tx := s.repos.BeginTx()
+
+	// บันทึกคำตอบในฐานข้อมูล
+	if err := tx.Create(answer).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// ดึงข้อมูลผู้เล่นเพื่ออัพเดทคะแนน
+	var player models.GamePlayer
+	if err := tx.Where("session_id = ? AND user_id = ?", sessionID, playerID).First(&player).Error; err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
 	// อัพเดทคะแนนผู้เล่น
-	player, err := s.gamePlayerRepo.GetPlayerBySessionAndUserID(sessionID, playerID)
-	if err != nil {
-		return answer, nil // ยังคืนคำตอบไปให้ แม้จะไม่สามารถอัพเดทคะแนนได้
+	player.Score += points
+	if err := tx.Save(&player).Error; err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
-	player.Score += points
-	err = s.gamePlayerRepo.UpdateGamePlayer(player)
-	if err != nil {
-		return answer, nil // ยังคืนคำตอบไปให้ แม้จะไม่สามารถอัพเดทคะแนนได้
+	// หากทุกอย่างเรียบร้อย commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
 	}
 
 	return answer, nil
 }
 
-// EndGameSession จบเกม
+func (s *GameService) GetGameSession(sessionID string) (*models.GameSession, error) {
+	return s.gameSessionRepo.GetGameSessionByID(sessionID)
+}
+
+// JoinGameSession ให้ผู้เล่นเข้าร่วม session (ปรับปรุงด้วย transaction)
+func (s *GameService) JoinGameSession(sessionID string, userID uint, nickname string) (*models.GamePlayer, error) {
+	// ตรวจสอบว่า session มีอยู่จริงและยังอยู่ในสถานะ lobby
+	session, err := s.gameSessionRepo.GetGameSessionByID(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if session.Status != "lobby" {
+		return nil, errors.New("ไม่สามารถเข้าร่วมได้: เกมได้เริ่มต้นหรือจบไปแล้ว")
+	}
+
+	// ตรวจสอบว่าผู้เล่นอยู่ใน session นี้แล้วหรือไม่
+	existingPlayer, err := s.gamePlayerRepo.GetPlayerBySessionAndUserID(sessionID, userID)
+	if err == nil && existingPlayer != nil {
+		// ผู้เล่นอยู่ใน session นี้แล้ว
+		return existingPlayer, nil
+	}
+
+	// สร้างผู้เล่นใหม่
+	player := &models.GamePlayer{
+		SessionID: sessionID,
+		UserID:    userID,
+		Nickname:  nickname,
+		Score:     0,
+		JoinedAt:  time.Now(),
+	}
+
+	// ใช้ transaction
+	tx := s.repos.BeginTx()
+	if err := tx.Create(player).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return player, nil
+}
+
+// StartGameSession เริ่มเกม (ปรับปรุงด้วย transaction)
+func (s *GameService) StartGameSession(sessionID string, hostID uint) error {
+	// ตรวจสอบว่าผู้ร้องขอคือโฮสต์
+	session, err := s.gameSessionRepo.GetGameSessionByID(sessionID)
+	if err != nil {
+		return err
+	}
+
+	if session.HostID != hostID {
+		return errors.New("เฉพาะโฮสต์เท่านั้นที่สามารถเริ่มเกมได้")
+	}
+
+	if session.Status != "lobby" {
+		return errors.New("เกมได้เริ่มต้นหรือจบไปแล้ว")
+	}
+
+	// อัพเดทสถานะเป็น "in_progress"
+	startTime := time.Now()
+	session.Status = "in_progress"
+	session.StartedAt = &startTime
+
+	// ใช้ transaction
+	tx := s.repos.BeginTx()
+	if err := tx.Save(session).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// EndGameSession จบเกม (ปรับปรุงด้วย transaction)
 func (s *GameService) EndGameSession(sessionID string, hostID uint) (*models.GameSession, error) {
 	// ตรวจสอบว่าผู้ร้องขอคือโฮสต์
 	session, err := s.gameSessionRepo.GetGameSessionByID(sessionID)
@@ -237,9 +274,14 @@ func (s *GameService) EndGameSession(sessionID string, hostID uint) (*models.Gam
 	session.Status = "completed"
 	session.FinishedAt = &finishedTime
 
-	// อัพเดท session
-	err = s.gameSessionRepo.UpdateGameSession(session)
-	if err != nil {
+	// ใช้ transaction
+	tx := s.repos.BeginTx()
+	if err := tx.Save(session).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
