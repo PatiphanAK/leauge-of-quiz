@@ -5,7 +5,7 @@ import (
 )
 
 type GameSession struct {
-	ID         string `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	ID         string `gorm:"primaryKey"` // ใช้ string แบบธรรมดา ไม่ใช่ uuid
 	QuizID     uint   `gorm:"not null;index"`
 	Quiz       Quiz   `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	HostID     uint   `gorm:"not null;index"`
@@ -19,7 +19,7 @@ type GameSession struct {
 
 type GamePlayer struct {
 	ID        uint        `gorm:"primaryKey"`
-	SessionID string      `gorm:"not null;index"`
+	SessionID string      `gorm:"not null;index;uniqueIndex:idx_session_user"` // string ธรรมดา
 	UserID    uint        `gorm:"not null;index;uniqueIndex:idx_session_user"`
 	Session   GameSession `gorm:"foreignKey:SessionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	User      User        `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`

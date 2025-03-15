@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5433"
+      - "5433:5432"  # Map host port 5433 to container port 5432
     restart: unless-stopped
 
 volumes:

@@ -1,10 +1,12 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 type PlayerAnswer struct {
 	ID         uint        `gorm:"primaryKey"`
-	SessionID  string      `gorm:"not null;index"`
+	SessionID  string      `gorm:"not null;index"` // string ธรรมดา
 	Session    GameSession `gorm:"foreignKey:SessionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	QuizID     uint        `gorm:"not null;index"`
 	Quiz       Quiz        `gorm:"foreignKey:QuizID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
