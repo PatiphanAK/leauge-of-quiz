@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"strconv"
 	"time"
 
@@ -15,6 +16,9 @@ type GameHandler struct {
 
 // NewGameHandler สร้าง GameHandler ใหม่
 func NewGameHandler(gameService *services.GameService) *GameHandler {
+	if gameService == nil {
+		log.Fatal("gameService cannot be nil")
+	}
 	return &GameHandler{
 		gameService: gameService,
 	}
@@ -27,10 +31,27 @@ type CreateGameSessionRequest struct {
 
 // CreateGameSession สร้างเกมใหม่
 func (h *GameHandler) CreateGameSession(c *fiber.Ctx) error {
+	log.Println("CreateGameSession")
+
+	// Validation: Check if gameService is initialized
+	if h.gameService == nil {
+		log.Println("Error: gameService is nil")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Game service not initialized",
+		})
+	}
+
 	var req CreateGameSessionRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
+		})
+	}
+
+	// Validation: Check if QuizID is valid
+	if req.QuizID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid quiz ID",
 		})
 	}
 
@@ -41,13 +62,17 @@ func (h *GameHandler) CreateGameSession(c *fiber.Ctx) error {
 			"error": "User not authenticated",
 		})
 	}
+	log.Println("userID", userID)
+	log.Println("req.QuizID", req.QuizID)
 
 	session, err := h.gameService.CreateGameSession(userID, req.QuizID)
 	if err != nil {
+		log.Printf("Error creating game session: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
+	log.Println("session", session)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Game session created successfully",

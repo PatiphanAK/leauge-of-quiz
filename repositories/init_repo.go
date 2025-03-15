@@ -20,6 +20,7 @@ func InitRepositories(db *gorm.DB) *Repositories {
 	log.Println("Initializing all repositories")
 
 	return &Repositories{
+		DB:           db,
 		Quiz:         NewQuizRepository(db),
 		Question:     NewQuestionRepository(db),
 		Choice:       NewChoiceRepository(db),

@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,7 @@ func NewGameService(
 // CreateGameSession สร้าง session เกมใหม่ ด้วย transaction
 func (s *GameService) CreateGameSession(hostID uint, quizID uint) (*models.GameSession, error) {
 	// สร้าง ID สำหรับ session
+	log.Println("CreateGameSession Service layer")
 	sessionID := uuid.New().String()
 
 	// สร้าง GameSession
