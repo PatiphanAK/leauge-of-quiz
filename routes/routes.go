@@ -20,28 +20,3 @@ func SetupRoutes(app *fiber.App, handlers *handlers.AllHandlers, authMiddleware 
 	SetupQuizRoute(app, handlers.Quiz, authMiddleware)
 	SetupQuestionRoute(app, handlers.Question, authMiddleware)
 }
-
-func SetupGameRoutes(app *fiber.App, gameHandler *handlers.GameHandler, authMiddleware *middleware.AuthMiddleware) {
-	// Regular HTTP routes
-	apiV1 := app.Group("/api/v1")
-	gameRoutes := apiV1.Group("/games")
-
-	// Public routes
-	gameRoutes.Get("/sessions/:id", gameHandler.GetGameSession)
-
-	// Protected routes
-	gameRoutes.Use(authMiddleware.RequireAuth())
-	gameRoutes.Post("/sessions", gameHandler.CreateGameSession)
-	gameRoutes.Post("/sessions/join", gameHandler.JoinGameSession)
-
-	// Hook up Socket.IO
-	app.Use(socketio.New(socketio.Config{
-		Server: gameHandler.GetSocketIOServer(),
-	}))
-
-	// WebSocket endpoint
-	app.Get("/socket.io/*", func(c *fiber.Ctx) error {
-		// This route is handled by the Socket.IO middleware
-		return nil
-	})
-}
