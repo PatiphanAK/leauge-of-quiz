@@ -51,4 +51,6 @@ type QuizCategory struct {
 	QuizID     uint `gorm:"primaryKey"`
 	CategoryID uint `gorm:"primaryKey"`
 	CreatedAt  time.Time
+	Quiz       Quiz     `gorm:"foreignKey:QuizID;constraint:OnDelete:CASCADE"`
+	Category   Category `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE"`
 }

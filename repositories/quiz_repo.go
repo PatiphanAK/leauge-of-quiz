@@ -132,7 +132,44 @@ func (r *QuizRepository) CheckQuizOwnership(quizID uint, userID uint) (bool, err
 
 // DeleteQuiz ลบ quiz
 func (r *QuizRepository) DeleteQuiz(id uint) error {
-	return r.db.Delete(&models.Quiz{}, id).Error
+	// Start a transaction
+	tx := r.db.Begin()
+
+	// Delete quiz categories
+	if err := tx.Where("quiz_id = ?", id).Delete(&models.QuizCategory{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Find all questions related to this quiz
+	var questionIDs []uint
+	if err := tx.Model(&models.Question{}).Where("quiz_id = ?", id).Pluck("id", &questionIDs).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete all choices for these questions
+	if len(questionIDs) > 0 {
+		if err := tx.Where("question_id IN ?", questionIDs).Delete(&models.Choice{}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Delete all questions
+	if err := tx.Where("quiz_id = ?", id).Delete(&models.Question{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete the quiz
+	if err := tx.Delete(&models.Quiz{}, id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Commit the transaction
+	return tx.Commit().Error
 }
 
 // UpdateQuizCategories อัปเดตหมวดหมู่ของ quiz

@@ -3,9 +3,11 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -38,7 +40,7 @@ func NewFileService(baseDir string) *FileService {
 			"image/gif",
 			"image/webp",
 		},
-		maxFileSize: 5 * 1024 * 1024, // 5MB
+		maxFileSize: 5 * 1024 * 1024,  // 5MB
 		serverURL:   "localhost:3000", // เก็บ URL ของเซิร์ฟเวอร์
 	}
 }
@@ -147,13 +149,12 @@ func (s *FileService) DeleteFileByURL(fileURL string) error {
 	if fileURL == "" {
 		return nil
 	}
-	
+
 	// แยกส่วนของ URL
 	filename, fileType, err := s.ExtractInfoFromURL(fileURL)
 	if err != nil {
 		return err
 	}
-	
 	return s.DeleteFile(filename, fileType)
 }
 
@@ -182,27 +183,23 @@ func (s *FileService) GetFilePath(fileURL string) (string, string, error) {
 	return filePath, fileType, nil
 }
 
-// ExtractInfoFromURL แยกข้อมูลจาก URL
-func (s *FileService) ExtractInfoFromURL(fileURL string) (filename string, fileType string, err error) {
+func (s *FileService) ExtractInfoFromURL(fileURL string) (string, string, error) {
 	if fileURL == "" {
-		return "", "", errors.New("empty URL")
+		return "", "", nil
 	}
 
-	// แปลงรูปแบบ URL ให้ถูกต้อง
-	fileURL = strings.TrimPrefix(fileURL, s.serverURL)
+	// Regular expression to extract file type and filename from URL
+	// Pattern matches: [anything]/storage/[filetype]/[filename]
+	re := regexp.MustCompile(`/storage/([^/]+)/([^/]+)$`)
+	matches := re.FindStringSubmatch(fileURL)
 
-	// ตรวจสอบว่า URL มีรูปแบบที่ถูกต้องหรือไม่
-	if !strings.HasPrefix(fileURL, "/storage/") {
-		return "", "", errors.New("invalid file URL format")
+	if matches == nil || len(matches) < 3 {
+		return "", "", fmt.Errorf("invalid file URL format: %s", fileURL)
 	}
 
-	// แยกส่วนของ URL
-	parts := strings.Split(strings.TrimPrefix(fileURL, "/storage/"), "/")
-	if len(parts) != 2 {
-		return "", "", errors.New("invalid file URL format")
-	}
-
-	return parts[1], parts[0], nil
+	fileType := matches[1] // e.g., "quiz"
+	filename := matches[2] // e.g., "5f93c498-050d-4fb6-8a0f-416ec7d1876f.jpg"
+	return filename, fileType, nil
 }
 
 // UpdateFile อัปเดตไฟล์โดยลบไฟล์เก่าและอัปโหลดไฟล์ใหม่
@@ -214,7 +211,13 @@ func (s *FileService) UpdateFile(file *multipart.FileHeader, oldFileURL string, 
 
 	// ถ้ามีไฟล์เก่า ให้ลบออก
 	if oldFileURL != "" {
-		_ = s.DeleteFileByURL(oldFileURL)
+		err := s.DeleteFileByURL(oldFileURL)
+		if err != nil {
+			log.Printf("WARNING: Failed to delete old file: %v", err)
+			// Continue anyway since we still want to upload the new file
+		} else {
+			log.Printf("Successfully deleted old file: %s", oldFileURL)
+		}
 	}
 
 	// อัปโหลดไฟล์ใหม่

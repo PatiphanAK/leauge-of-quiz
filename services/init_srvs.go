@@ -76,7 +76,6 @@ func InitServices(repos *repositories.Repositories, storagePath string) (*Servic
 func ensureStorageDirectories(baseDir string) error {
 	// Create main storage directory
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
-		log.Printf("Failed to create base storage directory: %v", err)
 		return err
 	}
 
@@ -84,7 +83,6 @@ func ensureStorageDirectories(baseDir string) error {
 	for _, fileType := range []string{"quiz", "question", "choice"} {
 		dirPath := filepath.Join(baseDir, fileType)
 		if err := os.MkdirAll(dirPath, 0755); err != nil {
-			log.Printf("Failed to create %s directory: %v", fileType, err)
 			return err
 		}
 	}

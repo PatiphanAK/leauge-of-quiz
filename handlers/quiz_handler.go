@@ -198,7 +198,6 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 
 	// รับข้อมูลจาก multipart form
 	title := c.FormValue("title", quiz.Title)
-	log.Printf("title: %v", title)
 	description := c.FormValue("description", quiz.Description)
 	timeLimitStr := c.FormValue("timeLimit")
 	isPublishedStr := c.FormValue("isPublished")
