@@ -108,7 +108,7 @@ func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 	description := c.FormValue("description")
 	timeLimit, _ := strconv.Atoi(c.FormValue("timeLimit", "0"))
 	isPublished := c.FormValue("isPublished") == "true"
-	
+
 	// ตรวจสอบข้อมูลที่จำเป็น
 	if title == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -123,8 +123,8 @@ func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 	}
 
 	// รับไฟล์รูปภาพ (ถ้ามี)
-	imageFile, err := c.FormFile("image")
-	
+	imageFile, _ := c.FormFile("image")
+
 	// สร้าง quiz object
 	quiz := &models.Quiz{
 		Title:       title,
@@ -152,7 +152,7 @@ func (h *QuizHandler) CreateQuiz(c *fiber.Ctx) error {
 				categoryIDs = append(categoryIDs, uint(catID))
 			}
 		}
-		
+
 		// อัปเดตหมวดหมู่
 		if len(categoryIDs) > 0 {
 			if err := h.quizService.UpdateQuizCategories(quiz.ID, categoryIDs, userID); err != nil {
@@ -177,7 +177,7 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
-	
+
 	quizID, statusCode, err := utils.ParseIDParam(c, "id")
 	if err != nil {
 		if statusCode == fiber.StatusOK {
@@ -191,18 +191,18 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Quiz not found"})
 	}
-	
+
 	if quiz.CreatorID != userID {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You don't have permission to modify this quiz"})
 	}
-	
+
 	// รับข้อมูลจาก multipart form
 	title := c.FormValue("title", quiz.Title)
 	log.Printf("title: %v", title)
 	description := c.FormValue("description", quiz.Description)
 	timeLimitStr := c.FormValue("timeLimit")
 	isPublishedStr := c.FormValue("isPublished")
-	
+
 	// ตรวจสอบข้อมูลที่จำเป็น
 	if title == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Title is required"})
@@ -210,32 +210,32 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 	if description == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Description is required"})
 	}
-	
+
 	// สร้าง map สำหรับการอัปเดต
 	updates := map[string]interface{}{
 		"title":       title,
 		"description": description,
 	}
-	
+
 	// เพิ่มข้อมูลเพิ่มเติมถ้ามีการส่งมา
 	if timeLimitStr != "" {
 		timeLimit, _ := strconv.Atoi(timeLimitStr)
 		updates["time_limit"] = timeLimit
 	}
-	
+
 	if isPublishedStr != "" {
 		isPublished := isPublishedStr == "true"
 		updates["is_published"] = isPublished
 	}
-	
+
 	// รับไฟล์รูปภาพ (ถ้ามี)
 	imageFile, _ := c.FormFile("imageURL")
-	
+
 	// อัปเดตข้อมูล quiz
 	if err := h.quizService.PatchQuiz(quizID, updates, imageFile, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	
+
 	// อัปเดตหมวดหมู่ (ถ้ามี)
 	categoriesStr := c.FormValue("categories")
 	if categoriesStr != "" {
@@ -247,13 +247,13 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 				categoryIDs = append(categoryIDs, uint(catID))
 			}
 		}
-		
+
 		if err := h.quizService.UpdateQuizCategories(quizID, categoryIDs, userID); err != nil {
 			// ถ้ามีข้อผิดพลาดในการอัปเดตหมวดหมู่ ก็ไม่ต้องยกเลิกการอัปเดต quiz
 			log.Printf("Failed to update quiz categories: %v", err)
 		}
 	}
-	
+
 	// ดึงข้อมูล quiz ที่อัปเดตแล้วและส่งกลับ
 	updatedQuiz, err := h.quizService.GetQuizByID(quizID)
 	if err != nil {
@@ -261,10 +261,10 @@ func (h *QuizHandler) UpdateQuiz(c *fiber.Ctx) error {
 			"error": "Failed to retrieve updated quiz",
 		})
 	}
-	
+
 	return c.JSON(fiber.Map{
 		"message": "Quiz updated successfully",
-		"data": updatedQuiz,
+		"data":    updatedQuiz,
 	})
 }
 

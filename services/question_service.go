@@ -30,7 +30,7 @@ func NewQuestionService(
 		questionRepo: questionRepo,
 		quizRepo:     quizRepo,
 		fileService:  fileService,
-		choiceRepo:  choiceRepo,
+		choiceRepo:   choiceRepo,
 	}
 }
 
@@ -68,87 +68,6 @@ func (s *QuestionService) GetQuestionsByQuizID(quizID uint) ([]models.Question, 
 	return s.questionRepo.GetQuestionsByQuizID(quizID)
 }
 
-// UpdateQuestion อัปเดตข้อมูลคำถาม
-func (s *QuestionService) UpdateQuestion(question *models.Question, imageFile *multipart.FileHeader, currentUserID uint) error {
-	// ดึง QuizID จาก QuestionID
-	quizID, err := s.questionRepo.GetQuizIDByQuestionID(question.ID)
-	if err != nil {
-		return err
-	}
-
-	// ตรวจสอบว่าผู้ใช้เป็นเจ้าของ quiz หรือไม่
-	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, currentUserID)
-	if err != nil {
-		return err
-	}
-	if !isOwner {
-		return errors.New("unauthorized: you are not the owner of this quiz")
-	}
-
-	// ดึงข้อมูลคำถามเดิม
-	existingQuestion, err := s.questionRepo.GetQuestionByID(question.ID)
-	if err != nil {
-		return err
-	}
-	
-	// ป้องกันการเปลี่ยน QuizID
-	question.QuizID = existingQuestion.QuizID
-
-	// จัดการไฟล์รูปภาพ
-	if imageFile != nil {
-		imageURL, err := s.fileService.UpdateFile(imageFile, existingQuestion.ImageURL, string(QuestionType))
-		if err != nil {
-			return err
-		}
-		question.ImageURL = imageURL
-	} else {
-		// ถ้าไม่มีการอัปโหลดรูปภาพใหม่ ให้ใช้รูปภาพเดิม
-		question.ImageURL = existingQuestion.ImageURL
-	}
-
-	// อัปเดตข้อมูลคำถาม
-	return s.questionRepo.UpdateQuestion(question)
-}
-
-// PatchQuestion อัปเดตข้อมูลคำถามบางส่วน
-func (s *QuestionService) PatchQuestion(questionID uint, updates map[string]interface{}, imageFile *multipart.FileHeader, currentUserID uint) error {
-	// ดึง QuizID จาก QuestionID
-	quizID, err := s.questionRepo.GetQuizIDByQuestionID(questionID)
-	if err != nil {
-		return err
-	}
-
-	// ตรวจสอบว่าผู้ใช้เป็นเจ้าของ quiz หรือไม่
-	isOwner, err := s.quizRepo.CheckQuizOwnership(quizID, currentUserID)
-	if err != nil {
-		return err
-	}
-	if !isOwner {
-		return errors.New("unauthorized: you are not the owner of this quiz")
-	}
-
-	// ป้องกันการเปลี่ยน QuizID
-	delete(updates, "quiz_id")
-
-	// จัดการไฟล์รูปภาพ
-	if imageFile != nil {
-		// ดึงข้อมูลคำถามเดิม
-		existingQuestion, err := s.questionRepo.GetQuestionByID(questionID)
-		if err != nil {
-			return err
-		}
-
-		imageURL, err := s.fileService.UpdateFile(imageFile, existingQuestion.ImageURL, string(QuestionType))
-		if err != nil {
-			return err
-		}
-		updates["image_url"] = imageURL
-	}
-
-	// อัปเดตข้อมูลคำถาม
-	return s.questionRepo.UpdateQuestionPartial(questionID, updates)
-}
-
 // DeleteQuestion ลบคำถาม
 func (s *QuestionService) DeleteQuestion(questionID uint, currentUserID uint) error {
 	// ดึงข้อมูลคำถาม
@@ -176,13 +95,12 @@ func (s *QuestionService) DeleteQuestion(questionID uint, currentUserID uint) er
 }
 
 // UpdateQuestionWithChoices อัปเดตคำถามพร้อมตัวเลือกทั้งหมดในครั้งเดียว
-// UpdateQuestionWithChoices อัปเดตคำถามพร้อมตัวเลือกทั้งหมดในครั้งเดียว
 func (s *QuestionService) UpdateQuestionWithChoices(
 	questionID uint,
-	text string, 
-	choices []dto.ChoiceFormData, 
+	text string,
+	choices []dto.ChoiceFormData,
 	questionImage *multipart.FileHeader,
-	choiceImages map[int]*multipart.FileHeader, 
+	choiceImages map[int]*multipart.FileHeader,
 	userID uint,
 ) error {
 	// ตรวจสอบว่าคำถามมีอยู่จริง
@@ -237,7 +155,7 @@ func (s *QuestionService) UpdateQuestionWithChoices(
 	for i, choiceData := range choices {
 		// ดึงไฟล์รูปภาพสำหรับตัวเลือกนี้ (ถ้ามี)
 		choiceImage := choiceImages[i]
-		
+
 		if choiceData.ID == "" || choiceData.ID == "0" {
 			// 3.1 สร้างตัวเลือกใหม่
 			newChoice := &models.Choice{
@@ -245,7 +163,7 @@ func (s *QuestionService) UpdateQuestionWithChoices(
 				Text:       choiceData.Text,
 				IsCorrect:  choiceData.IsCorrect,
 			}
-			
+
 			// จัดการรูปภาพ
 			if choiceImage != nil {
 				imageURL, err := s.fileService.UploadFile(choiceImage, string(ChoiceType))
@@ -254,7 +172,7 @@ func (s *QuestionService) UpdateQuestionWithChoices(
 				}
 				newChoice.ImageURL = imageURL
 			}
-			
+
 			// สร้างตัวเลือกใหม่
 			if err := s.choiceRepo.CreateChoice(newChoice); err != nil {
 				return err
@@ -265,16 +183,16 @@ func (s *QuestionService) UpdateQuestionWithChoices(
 			if err != nil {
 				return fmt.Errorf("invalid choice ID: %s", choiceData.ID)
 			}
-			
+
 			// บันทึกว่าได้ประมวลผลตัวเลือกนี้แล้ว
 			processedChoiceIds[uint(choiceID)] = true
-			
+
 			// ดึงข้อมูลตัวเลือกเดิม
 			existingChoice, err := s.choiceRepo.GetChoiceByID(uint(choiceID))
 			if err != nil {
 				return fmt.Errorf("choice not found: %d", choiceID)
 			}
-			
+
 			// สร้างข้อมูลสำหรับอัปเดต
 			choiceToUpdate := &models.Choice{
 				ID:         uint(choiceID),
@@ -282,7 +200,7 @@ func (s *QuestionService) UpdateQuestionWithChoices(
 				Text:       choiceData.Text,
 				IsCorrect:  choiceData.IsCorrect,
 			}
-			
+
 			// จัดการรูปภาพ
 			if choiceImage != nil {
 				imageURL, err := s.fileService.UpdateFile(choiceImage, existingChoice.ImageURL, string(ChoiceType))
@@ -293,7 +211,7 @@ func (s *QuestionService) UpdateQuestionWithChoices(
 			} else {
 				choiceToUpdate.ImageURL = existingChoice.ImageURL
 			}
-			
+
 			// อัปเดตตัวเลือก
 			if err := s.choiceRepo.UpdateChoice(choiceToUpdate); err != nil {
 				return err
@@ -308,13 +226,64 @@ func (s *QuestionService) UpdateQuestionWithChoices(
 			if existingChoice.ImageURL != "" {
 				_ = s.fileService.DeleteFileByURL(existingChoice.ImageURL)
 			}
-			
+
 			// ลบตัวเลือก
 			if err := s.choiceRepo.DeleteChoice(existingChoice.ID); err != nil {
 				return err
 			}
 		}
 	}
-	
+
 	return nil
+}
+
+func (s *QuestionService) CreateQuestionWithChoices(
+	question *models.Question,
+	choices []dto.ChoiceFormData,
+	questionImage *multipart.FileHeader,
+	choiceImages map[int]*multipart.FileHeader,
+	userID uint,
+) (uint, error) {
+	// ตรวจสอบว่าผู้ใช้เป็นเจ้าของ quiz หรือไม่
+	isOwner, err := s.quizRepo.CheckQuizOwnership(question.QuizID, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to check quiz ownership: %w", err)
+	}
+	if !isOwner {
+		return 0, errors.New("unauthorized: you are not the owner of this quiz")
+	}
+
+	// 1. สร้างคำถาม
+	if err := s.questionRepo.CreateQuestion(question); err != nil {
+		return 0, fmt.Errorf("failed to create question: %w", err)
+	}
+
+	if question.ID == 0 {
+		return 0, errors.New("question creation succeeded but ID is invalid")
+	}
+
+	// 2. สร้างตัวเลือก
+	for i, choiceData := range choices {
+		choiceImage, exists := choiceImages[i]
+
+		newChoice := &models.Choice{
+			QuestionID: question.ID,
+			Text:       choiceData.Text,
+			IsCorrect:  choiceData.IsCorrect,
+		}
+
+		if exists && choiceImage != nil {
+			imageURL, err := s.fileService.UploadFile(choiceImage, string(ChoiceType))
+			if err != nil {
+				return 0, fmt.Errorf("failed to upload choice image: %w", err)
+			}
+			newChoice.ImageURL = imageURL
+		}
+
+		if err := s.choiceRepo.CreateChoice(newChoice); err != nil {
+			return 0, fmt.Errorf("failed to create choice: %w", err)
+		}
+	}
+
+	return question.ID, nil
 }

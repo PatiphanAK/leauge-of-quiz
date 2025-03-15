@@ -9,17 +9,16 @@ import (
 func SetupQuestionRoute(app *fiber.App, questionHandler *handlers.QuestionHandler, authMiddleware *middleware.AuthMiddleware) {
 	apiV1 := app.Group("/api/v1")
 	quizzes := apiV1.Group("/quizzes")
-	
+
 	// Routes that don't require auth
 	quizzes.Get("/:quizId/questions", questionHandler.GetQuestionsByQuizID)
 	quizzes.Get("/:quizId/questions/:id", questionHandler.GetQuestionByID)
-	
+
 	// Routes that require auth
 	questionsWithAuth := quizzes.Group("/:quizId/questions")
 	questionsWithAuth.Use(authMiddleware.RequireAuth())
-	
+
 	questionsWithAuth.Post("/", questionHandler.CreateQuestion)
 	questionsWithAuth.Patch("/:id", questionHandler.PatchQuestion)
-	questionsWithAuth.Put("/:id", questionHandler.UpdateQuestion)
 	questionsWithAuth.Delete("/:id", questionHandler.DeleteQuestion)
 }

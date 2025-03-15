@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"mime/multipart"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -26,15 +25,26 @@ type QuestionHandler struct {
 
 // NewQuestionHandler สร้าง instance ใหม่ของ QuestionHandler
 func NewQuestionHandler(
-	questionService *services.QuestionService, 
+	questionService *services.QuestionService,
 	fileService *services.FileService,
 	choiceService *services.ChoiceService,
-	) *QuestionHandler {
+) *QuestionHandler {
 	return &QuestionHandler{
 		questionService: questionService,
 		fileService:     fileService,
-		choiceService:  choiceService,
+		choiceService:   choiceService,
 	}
+}
+
+func getChoiceImages(c *fiber.Ctx, numChoices int) map[int]*multipart.FileHeader {
+	choiceImages := make(map[int]*multipart.FileHeader)
+	for i := 0; i < numChoices; i++ {
+		choiceImage, err := c.FormFile(fmt.Sprintf("choices[%d][image]", i))
+		if err == nil && choiceImage != nil {
+			choiceImages[i] = choiceImage
+		}
+	}
+	return choiceImages
 }
 
 // GetQuestionsByQuizID ดึงคำถามทั้งหมดของ quiz
@@ -82,100 +92,50 @@ func (h *QuestionHandler) CreateQuestion(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 	}
-	// รับข้อมูลจาก multipart form
-	quizIDStr := c.FormValue("quizId")
-	text := c.FormValue("text")
 
-	// ตรวจสอบข้อมูลที่จำเป็น
-	log.Print("quizIDStr: ", quizIDStr)
-	if quizIDStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Quiz ID is required"})
+	// รับข้อมูล JSON จาก form
+	questionDataStr := c.FormValue("questionData")
+	if questionDataStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Question data is required"})
 	}
-	if text == "" {
+
+	var formData dto.QuestionFormData
+	if err := json.Unmarshal([]byte(questionDataStr), &formData); err != nil {
+		log.Printf("Error parsing question data: %v", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid question data format"})
+	}
+
+	if formData.Text == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Question text is required"})
 	}
 
-	// แปลง quizID เป็น uint
-	quizID, err := strconv.ParseUint(quizIDStr, 10, 32)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Quiz ID"})
-	}
+	questionImage, _ := c.FormFile("image")
 
-	// รับไฟล์รูปภาพ (ถ้ามี)
-	imageFile, _ := c.FormFile("image")
+	choiceImages := getChoiceImages(c, len(formData.Choices))
 
-	// สร้างคำถาม
 	question := &models.Question{
-		QuizID: uint(quizID),
-		Text:   text,
+		QuizID: uint(formData.QuizID),
+		Text:   formData.Text,
 	}
 
-	// บันทึกคำถามพร้อมรูปภาพ
-	if err := h.questionService.CreateQuestion(question, imageFile, userID); err != nil {
+	// เรียกใช้ฟังก์ชันโดยส่ง question แทน
+	questionID, err := h.questionService.CreateQuestionWithChoices(
+		question,
+		formData.Choices,
+		questionImage,
+		choiceImages,
+		userID,
+	)
+
+	if err != nil {
+		log.Printf("Error creating question with choices: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-
-	choices := c.FormValue("choices")
-	log.Print("choices: ", choices)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Question created successfully",
 		"data": fiber.Map{
-			"id": question.ID,
-		},
-	})
-}
-
-// UpdateQuestion อัปเดตข้อมูลคำถาม
-func (h *QuestionHandler) UpdateQuestion(c *fiber.Ctx) error {
-	// ตรวจสอบว่าผู้ใช้ล็อกอินแล้ว
-	userID, statusCode, err := utils.GetAuthenticatedUserID(c)
-	if err != nil {
-		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	// รับ questionID จาก parameter
-	questionID, statusCode, err := utils.ParseIDParam(c, "id")
-	if err != nil {
-		return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	// ดึงข้อมูลคำถามเดิม
-	existingQuestion, err := h.questionService.GetQuestionByID(questionID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Question not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal server error"})
-	}
-
-	// รับข้อมูลจาก multipart form
-	text := c.FormValue("text", existingQuestion.Text)
-
-	// ตรวจสอบข้อมูลที่จำเป็น
-	if text == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Question text is required"})
-	}
-
-	// รับไฟล์รูปภาพ (ถ้ามี)
-	imageFile, _ := c.FormFile("image")
-
-	// อัปเดตข้อมูลคำถาม
-	question := &models.Question{
-		ID:     questionID,
-		QuizID: existingQuestion.QuizID, // ไม่อนุญาตให้เปลี่ยน QuizID
-		Text:   text,
-	}
-
-	// บันทึกข้อมูลคำถามที่อัปเดต
-	if err := h.questionService.UpdateQuestion(question, imageFile, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "Question updated successfully",
-		"data": fiber.Map{
-			"id": question.ID,
+			"id": questionID,
 		},
 	})
 }
