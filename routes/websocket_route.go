@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"log"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/patiphanak/league-of-quiz/websocket"
@@ -9,6 +11,7 @@ import (
 // SetupWebSocketRoute ลงทะเบียน WebSocket route
 func SetupWebSocketRoute(app *fiber.App, wsManager *websocket.Manager) {
 	// แปลง http.Handler เป็น fiber.Handler ด้วย adaptor
+	log.Println("Setting up")
 	socketHandler := adaptor.HTTPHandler(wsManager.Server())
 
 	// ลงทะเบียน WebSocket routes
