@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+	"time"
 
 	socketio "github.com/googollee/go-socket.io"
+	"github.com/googollee/go-socket.io/engineio"
 	"github.com/patiphanak/league-of-quiz/services"
 )
 
@@ -40,7 +42,10 @@ type Manager struct {
 // NewManager สร้าง WebSocket manager ใหม่
 func NewManager(gameService *services.GameService) (*Manager, error) {
 	// สร้าง Socket.IO server
-	server := socketio.NewServer(nil)
+	server := socketio.NewServer(&engineio.Options{
+		PingTimeout:  60 * time.Second,
+		PingInterval: 25 * time.Second,
+	})
 
 	manager := &Manager{
 		server:      server,
