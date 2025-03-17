@@ -31,7 +31,6 @@ type CreateGameSessionRequest struct {
 
 // CreateGameSession สร้างเกมใหม่
 func (h *GameHandler) CreateGameSession(c *fiber.Ctx) error {
-	log.Println("CreateGameSession")
 
 	// Validation: Check if gameService is initialized
 	if h.gameService == nil {
