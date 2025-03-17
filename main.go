@@ -48,13 +48,11 @@ func main() {
 	}
 	defer services.ShutdownServices()
 
-	// สร้าง WebSocket manager
 	wsManager, err := websocket.NewManager(services.GameService)
 	if err != nil {
 		log.Fatalf("Error creating WebSocket manager: %v", err)
 	}
 
-	// เริ่ม WebSocket server
 	go func() {
 		if err := wsManager.Server().Serve(); err != nil {
 			log.Fatalf("Socket.IO server error: %v", err)

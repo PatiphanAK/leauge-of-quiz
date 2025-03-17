@@ -8,10 +8,9 @@ import (
 	"github.com/patiphanak/league-of-quiz/websocket"
 )
 
-// SetupWebSocketRoute ลงทะเบียน WebSocket route
 func SetupWebSocketRoute(app *fiber.App, wsManager *websocket.Manager) {
 	// แปลง http.Handler เป็น fiber.Handler ด้วย adaptor
-	log.Println("Setting up")
+	log.Println("Setting up WebSocket routes")
 	socketHandler := adaptor.HTTPHandler(wsManager.Server())
 
 	// ลงทะเบียน WebSocket routes

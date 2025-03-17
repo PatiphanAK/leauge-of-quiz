@@ -34,54 +34,60 @@ type Manager struct {
 	server      *socketio.Server
 	gameService *services.GameService
 	sessions    map[string]map[string]socketio.Conn // sessionID -> socketID -> conn
+	users       map[string]uint                     // socketID -> userID
 	mu          sync.RWMutex
 }
 
 // NewManager สร้าง WebSocket manager ใหม่
 func NewManager(gameService *services.GameService) (*Manager, error) {
 	// สร้าง Socket.IO server
-	log.Println("Starting WebSocket server...")
 	server := socketio.NewServer(nil)
 
 	manager := &Manager{
 		server:      server,
 		gameService: gameService,
 		sessions:    make(map[string]map[string]socketio.Conn),
+		users:       make(map[string]uint),
 	}
 
 	// ตั้งค่า event handlers
 	server.OnConnect("/", func(s socketio.Conn) error {
-		log.Printf("เชื่อมต่อแล้ว: %s", s.ID())
+		log.Printf("Client connected: %s", s.ID())
 		return nil
 	})
 
 	server.OnDisconnect("/", func(s socketio.Conn, reason string) {
-		log.Printf("ยกเลิกการเชื่อมต่อแล้ว: %s (เหตุผล: %s)", s.ID(), reason)
+		log.Printf("Client disconnected: %s (reason: %s)", s.ID(), reason)
 		manager.handleDisconnect(s)
 	})
 
 	// จัดการการเข้าร่วมเกม
 	server.OnEvent("/", "join_session", func(s socketio.Conn, sessionID string, userID uint, nickname string) {
+		log.Printf("User %d joining session %s with nickname %s", userID, sessionID, nickname)
 		manager.handleJoinSession(s, sessionID, userID, nickname)
 	})
 
 	// จัดการการเริ่มเกม
 	server.OnEvent("/", "start_game", func(s socketio.Conn, sessionID string, hostID uint) {
+		log.Printf("Host %d starting game in session %s", hostID, sessionID)
 		manager.handleStartGame(s, sessionID, hostID)
 	})
 
 	// จัดการการส่งคำตอบ
 	server.OnEvent("/", "submit_answer", func(s socketio.Conn, sessionID string, userID uint, questionID uint, choiceID uint, timeSpent float64) {
+		log.Printf("User %d submitting answer %d for question %d in session %s (time: %.2f)", userID, choiceID, questionID, sessionID, timeSpent)
 		manager.handleSubmitAnswer(s, sessionID, userID, questionID, choiceID, timeSpent)
 	})
 
 	// จัดการการจบเกม
 	server.OnEvent("/", "end_game", func(s socketio.Conn, sessionID string, hostID uint) {
+		log.Printf("Host %d ending game in session %s", hostID, sessionID)
 		manager.handleEndGame(s, sessionID, hostID)
 	})
 
 	// จัดการข้อความแชท
 	server.OnEvent("/", "chat_message", func(s socketio.Conn, sessionID string, userID uint, message string) {
+		log.Printf("User %d sending chat message in session %s: %s", userID, sessionID, message)
 		manager.handleChatMessage(s, sessionID, userID, message)
 	})
 
@@ -101,6 +107,7 @@ func (m *Manager) BroadcastToSession(sessionID string, message Message) {
 	// ตรวจสอบว่ามีห้องนี้หรือไม่
 	sessionConns, exists := m.sessions[sessionID]
 	if !exists {
+		log.Printf("Cannot broadcast to session %s: session not found", sessionID)
 		return
 	}
 
@@ -114,11 +121,44 @@ func (m *Manager) BroadcastToSession(sessionID string, message Message) {
 	// ส่งข้อความไปยังผู้เล่นทั้งหมดในห้อง
 	for _, conn := range sessionConns {
 		conn.Emit("message", string(messageJSON))
+		
+		// ส่ง event เฉพาะด้วย
+		conn.Emit(string(message.Type), message.Payload)
+	}
+}
+
+// BroadcastToSessionExcept ส่งข้อความไปยังผู้เล่นทั้งหมดในห้องยกเว้นผู้เล่นที่ระบุ
+func (m *Manager) BroadcastToSessionExcept(sessionID string, exceptSocketID string, message Message) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// ตรวจสอบว่ามีห้องนี้หรือไม่
+	sessionConns, exists := m.sessions[sessionID]
+	if !exists {
+		return
+	}
+
+	// แปลงข้อความเป็น JSON
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling message: %v", err)
+		return
+	}
+
+	// ส่งข้อความไปยังผู้เล่นทั้งหมดในห้องยกเว้นผู้เล่นที่ระบุ
+	for socketID, conn := range sessionConns {
+		if socketID != exceptSocketID {
+			conn.Emit("message", string(messageJSON))
+			
+			// ส่ง event เฉพาะด้วย
+			conn.Emit(string(message.Type), message.Payload)
+		}
 	}
 }
 
 // HandleError ส่งข้อความข้อผิดพลาดไปยังผู้เล่น
 func (m *Manager) HandleError(conn socketio.Conn, errorMsg string) {
+	log.Printf("Sending error to client %s: %s", conn.ID(), errorMsg)
 	conn.Emit("error", errorMsg)
 }
 
@@ -130,12 +170,13 @@ func (m *Manager) handleJoinSession(s socketio.Conn, sessionID string, userID ui
 		m.sessions[sessionID] = make(map[string]socketio.Conn)
 	}
 	m.sessions[sessionID][s.ID()] = s
+	m.users[s.ID()] = userID
 	m.mu.Unlock()
 
 	// เข้าร่วมเกมผ่าน service
 	player, err := m.gameService.JoinGameSession(sessionID, userID, nickname)
 	if err != nil {
-		m.HandleError(s, "ไม่สามารถเข้าร่วมเกมได้: "+err.Error())
+		m.HandleError(s, "Cannot join game: "+err.Error())
 		return
 	}
 
@@ -143,14 +184,17 @@ func (m *Manager) handleJoinSession(s socketio.Conn, sessionID string, userID ui
 	session, _ := m.gameService.GetGameSession(sessionID)
 
 	// ส่งข้อความสำเร็จไปยังผู้เล่น
-	s.Emit("joined", player)
+	s.Emit("joined", map[string]interface{}{
+		"session": session,
+		"player":  player,
+	})
 
 	// ส่งข้อความไปยังผู้เล่นทั้งหมด
 	m.BroadcastToSession(sessionID, Message{
 		Type: EventPlayerJoined,
 		Payload: map[string]interface{}{
-			"session": session,
-			"player":  player,
+			"sessionId": sessionID,
+			"player":    player,
 		},
 	})
 }
@@ -159,7 +203,7 @@ func (m *Manager) handleJoinSession(s socketio.Conn, sessionID string, userID ui
 func (m *Manager) handleStartGame(s socketio.Conn, sessionID string, hostID uint) {
 	err := m.gameService.StartGameSession(sessionID, hostID)
 	if err != nil {
-		m.HandleError(s, "ไม่สามารถเริ่มเกมได้: "+err.Error())
+		m.HandleError(s, "Cannot start game: "+err.Error())
 		return
 	}
 
@@ -170,7 +214,8 @@ func (m *Manager) handleStartGame(s socketio.Conn, sessionID string, hostID uint
 	m.BroadcastToSession(sessionID, Message{
 		Type: EventGameStarted,
 		Payload: map[string]interface{}{
-			"session": session,
+			"sessionId": sessionID,
+			"session":   session,
 		},
 	})
 }
@@ -179,7 +224,7 @@ func (m *Manager) handleStartGame(s socketio.Conn, sessionID string, hostID uint
 func (m *Manager) handleSubmitAnswer(s socketio.Conn, sessionID string, userID uint, questionID uint, choiceID uint, timeSpent float64) {
 	answer, err := m.gameService.SubmitAnswer(sessionID, userID, questionID, choiceID, timeSpent)
 	if err != nil {
-		m.HandleError(s, "ไม่สามารถส่งคำตอบได้: "+err.Error())
+		m.HandleError(s, "Cannot submit answer: "+err.Error())
 		return
 	}
 
@@ -190,8 +235,9 @@ func (m *Manager) handleSubmitAnswer(s socketio.Conn, sessionID string, userID u
 	m.BroadcastToSession(sessionID, Message{
 		Type: EventAnswerSubmitted,
 		Payload: map[string]interface{}{
-			"playerID":   userID,
-			"questionID": questionID,
+			"sessionId":  sessionID,
+			"playerId":   userID,
+			"questionId": questionID,
 			// ไม่ควรส่งคำตอบที่แท้จริงเพื่อป้องกันการโกง
 		},
 	})
@@ -201,7 +247,7 @@ func (m *Manager) handleSubmitAnswer(s socketio.Conn, sessionID string, userID u
 func (m *Manager) handleEndGame(s socketio.Conn, sessionID string, hostID uint) {
 	session, err := m.gameService.EndGameSession(sessionID, hostID)
 	if err != nil {
-		m.HandleError(s, "ไม่สามารถจบเกมได้: "+err.Error())
+		m.HandleError(s, "Cannot end game: "+err.Error())
 		return
 	}
 
@@ -212,8 +258,9 @@ func (m *Manager) handleEndGame(s socketio.Conn, sessionID string, hostID uint) 
 	m.BroadcastToSession(sessionID, Message{
 		Type: EventGameEnded,
 		Payload: map[string]interface{}{
-			"session": session,
-			"players": players,
+			"sessionId": sessionID,
+			"session":   session,
+			"players":   players,
 		},
 	})
 }
@@ -224,8 +271,9 @@ func (m *Manager) handleChatMessage(_ socketio.Conn, sessionID string, userID ui
 	m.BroadcastToSession(sessionID, Message{
 		Type: EventChatMessage,
 		Payload: map[string]interface{}{
-			"userID":  userID,
-			"message": message,
+			"sessionId": sessionID,
+			"userID":    userID,
+			"message":   message,
 		},
 	})
 }
@@ -240,6 +288,7 @@ func (m *Manager) handleDisconnect(s socketio.Conn) {
 		if _, exists := clients[s.ID()]; exists {
 			// ลบผู้เล่นออกจากห้อง
 			delete(m.sessions[sessionID], s.ID())
+			delete(m.users, s.ID())
 
 			// ถ้าห้องว่างแล้ว ให้ลบห้อง
 			if len(m.sessions[sessionID]) == 0 {
