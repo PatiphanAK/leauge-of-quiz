@@ -52,14 +52,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating WebSocket manager: %v", err)
 	}
-
-	go func() {
-		if err := wsManager.Server().Serve(); err != nil {
-			log.Fatalf("Socket.IO server error: %v", err)
-		}
-	}()
-	defer wsManager.Server().Close()
-
 	// Initialize auth components
 	googleAuth := oauth.NewGoogleOAuth(cfg)
 	jwtService := jwt.NewJWTService(cfg)
@@ -72,7 +64,7 @@ func main() {
 
 	// Set up middlewares
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:4000",
+		AllowOrigins:     "http://localhost:4000,http://localhost:3000",
 		AllowMethods:     "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
 		AllowHeaders:     "Origin,Content-Type,Accept,Content-Length,Accept-Language,Accept-Encoding,Connection,Access-Control-Allow-Origin,Authorization",
 		ExposeHeaders:    "Content-Length",

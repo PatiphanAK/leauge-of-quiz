@@ -11,9 +11,8 @@ import (
 func SetupWebSocketRoute(app *fiber.App, wsManager *websocket.Manager) {
 	// แปลง http.Handler เป็น fiber.Handler ด้วย adaptor
 	log.Println("Setting up WebSocket routes")
-	socketHandler := adaptor.HTTPHandler(wsManager.Server())
+	socketHandler := adaptor.HTTPHandler(wsManager.HandleHTTP())
 
 	// ลงทะเบียน WebSocket routes
-	app.Get("/socket.io/*", socketHandler)
-	app.Post("/socket.io/*", socketHandler)
+	app.Get("/ws", socketHandler)
 }

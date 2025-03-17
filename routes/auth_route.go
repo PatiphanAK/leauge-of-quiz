@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -30,7 +29,6 @@ func SetupAuthRoute(app *fiber.App, authHandler *handlers.AuthHandler, authMiddl
 				"error": "Unauthorized - invalid user format",
 			})
 		}
-		fmt.Printf("Sending user data: %+v\n", user)
 	
     return c.JSON(fiber.Map{
         "user": fiber.Map{
