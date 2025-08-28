@@ -1,17 +1,17 @@
 # League of Quiz (Kahoot Clone)
 
-**League of Quiz** is a multiplayer quiz game inspired by Kahoot. Players can join rooms, answer questions, and compete in real-time. The game is built using **Vue3**, **Nuxt3**, **GoFiber**, and **Socket.io** to provide a seamless and interactive gaming experience.
+**League of Quiz** is a multiplayer quiz game inspired by Kahoot. Players can join rooms, answer questions, and compete in real-time. The game is built using **Vue3**, **Nuxt3**, **GoFiber**, and **Gorilla Websocket** to provide a seamless and interactive gaming experience.
 
 ## Technologies Used
 
 - **Frontend**: 
   - Vue 3
   - Nuxt 3
-  - Socket.io (for real-time communication)
+  - Bun (for fast dependency management)
   
 - **Backend**: 
   - GoFiber (Web framework for Go)
-  - Socket.io (for real-time communication with clients)
+  - Gorilla Websocket
 
 ## Features
 
